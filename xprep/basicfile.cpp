@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "xprep.h"
+#include "njord.h"
 
 JSBool fs_copy_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {

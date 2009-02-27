@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "xprep.h"
+#include "njord.h"
 
 
 struct JSConstDoubleSpec win32MessageBoxTypes[] = {
