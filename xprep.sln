@@ -1,0 +1,38 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xprep", "xprep\xprep.vcproj", "{EEE1F9F5-BBE0-4BFF-A058-7ABB7CEB0574}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_curl", "js_curl\js_curl.vcproj", "{296E65E3-A7F4-4562-BFA1-9C3B7DFF4794}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_reg", "js_reg\js_reg.vcproj", "{5151D485-B759-4EB0-BDBD-7678AC45EBD7}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_xdeploy", "js_xdeploy\js_xdeploy.vcproj", "{03E99EE3-944C-489C-B105-C6D4D185906B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EEE1F9F5-BBE0-4BFF-A058-7ABB7CEB0574}.Debug|Win32.ActiveCfg = Debug|Win32
+		{EEE1F9F5-BBE0-4BFF-A058-7ABB7CEB0574}.Debug|Win32.Build.0 = Debug|Win32
+		{EEE1F9F5-BBE0-4BFF-A058-7ABB7CEB0574}.Release|Win32.ActiveCfg = Release|Win32
+		{EEE1F9F5-BBE0-4BFF-A058-7ABB7CEB0574}.Release|Win32.Build.0 = Release|Win32
+		{296E65E3-A7F4-4562-BFA1-9C3B7DFF4794}.Debug|Win32.ActiveCfg = Debug|Win32
+		{296E65E3-A7F4-4562-BFA1-9C3B7DFF4794}.Debug|Win32.Build.0 = Debug|Win32
+		{296E65E3-A7F4-4562-BFA1-9C3B7DFF4794}.Release|Win32.ActiveCfg = Release|Win32
+		{296E65E3-A7F4-4562-BFA1-9C3B7DFF4794}.Release|Win32.Build.0 = Release|Win32
+		{5151D485-B759-4EB0-BDBD-7678AC45EBD7}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5151D485-B759-4EB0-BDBD-7678AC45EBD7}.Debug|Win32.Build.0 = Debug|Win32
+		{5151D485-B759-4EB0-BDBD-7678AC45EBD7}.Release|Win32.ActiveCfg = Release|Win32
+		{5151D485-B759-4EB0-BDBD-7678AC45EBD7}.Release|Win32.Build.0 = Release|Win32
+		{03E99EE3-944C-489C-B105-C6D4D185906B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{03E99EE3-944C-489C-B105-C6D4D185906B}.Debug|Win32.Build.0 = Debug|Win32
+		{03E99EE3-944C-489C-B105-C6D4D185906B}.Release|Win32.ActiveCfg = Release|Win32
+		{03E99EE3-944C-489C-B105-C6D4D185906B}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
