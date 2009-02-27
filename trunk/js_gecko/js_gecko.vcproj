@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="njord"
-	ProjectGUID="{EEE1F9F5-BBE0-4BFF-A058-7ABB7CEB0574}"
-	RootNamespace="xprep"
+	Name="js_gecko"
+	ProjectGUID="{E0383830-1E93-47D2-B69D-C5D3F4E8AB6C}"
+	RootNamespace="js_gecko"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="196613"
 	>
@@ -20,7 +20,7 @@
 			Name="Debug|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
-			ConfigurationType="1"
+			ConfigurationType="2"
 			CharacterSet="1"
 			>
 			<Tool
@@ -41,12 +41,11 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="../spidermonkey/include;..\geckoembed;..\geckoembed\nspr;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\string&quot;;&quot;..\xulrunner-sdk\include\content&quot;"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;XPCOM_GLUE=1;XP_WIN=1"
+				AdditionalIncludeDirectories="..\spidermonkey\include;..\geckoembed;..\geckoembed\nspr;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\string&quot;;&quot;..\xulrunner-sdk\include\content&quot;"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JS_GECKO_EXPORTS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
-				BufferSecurityCheck="true"
 				TreatWChar_tAsBuiltInType="false"
 				UsePrecompiledHeader="2"
 				WarningLevel="3"
@@ -96,7 +95,7 @@
 			Name="Release|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
-			ConfigurationType="1"
+			ConfigurationType="2"
 			CharacterSet="1"
 			WholeProgramOptimization="1"
 			>
@@ -119,8 +118,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="../spidermonkey/include;..\geckoembed;..\geckoembed\nspr;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\string&quot;;&quot;..\xulrunner-sdk\include\content&quot;"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
+				AdditionalIncludeDirectories="..\spidermonkey\include;..\geckoembed;..\geckoembed\nspr;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\string&quot;;&quot;..\xulrunner-sdk\include\content&quot;"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;JS_GECKO_EXPORTS"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				TreatWChar_tAsBuiltInType="false"
@@ -180,26 +179,6 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\basicfile.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\exec.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\loadjsfile.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\nativeimports.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\njord.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\stdafx.cpp"
 				>
 				<FileConfiguration
@@ -220,7 +199,15 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\win32s.cpp"
+				RelativePath=".\uiproper.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\uiutil.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\varstore.cpp"
 				>
 			</File>
 		</Filter>
@@ -230,11 +217,11 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath=".\njord.h"
+				RelativePath=".\js_gecko.h"
 				>
 			</File>
 			<File
-				RelativePath=".\Resource.h"
+				RelativePath=".\resource.h"
 				>
 			</File>
 			<File
@@ -245,6 +232,10 @@
 				RelativePath=".\targetver.h"
 				>
 			</File>
+			<File
+				RelativePath=".\varstore.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
@@ -252,15 +243,15 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 			<File
-				RelativePath=".\small.ico"
+				RelativePath=".\js_gecko.rc"
 				>
 			</File>
 			<File
-				RelativePath=".\xprep.ico"
+				RelativePath="..\xprep\small.ico"
 				>
 			</File>
 			<File
-				RelativePath=".\xprep.rc"
+				RelativePath="..\xprep\xprep.ico"
 				>
 			</File>
 		</Filter>

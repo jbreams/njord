@@ -32,3 +32,4 @@ public:
 extern JSClass varStoreClass;
 extern JSObject * varStoreProto;
 #endif
+JSBool InitVarStore(JSContext * cx, JSObject * global);

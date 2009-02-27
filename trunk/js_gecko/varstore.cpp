@@ -196,7 +196,7 @@ JSBool xprep_varstore_getter(JSContext *cx, JSObject * obj, uintN argc, jsval * 
 			JS_NewNumberValue(cx, (jsdouble)varObj->number, rval);
 		else if(varObj->type == VarStore::STRING)
 		{
-			JSString * copiedString = JS_NewUCStringCopyZ(cx, varObj->string);
+			JSString * copiedString = JS_NewUCStringCopyZ(cx, (jschar*)varObj->string);
 			*rval = STRING_TO_JSVAL(copiedString);
 		}
 	}
