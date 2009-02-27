@@ -40,8 +40,33 @@ JSBool win32_messagebox(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 	return JS_NewNumberValue(cx, errorCode, rval);
 }
 
+JSBool win32_getlasterror(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	return JS_NewNumberValue(cx, GetLastError(), rval);
+}
+
+JSBool win32_getlasterrormsg(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	LPWSTR buffer;
+	DWORD errorCode = GetLastError();
+	if(argc > 0)
+		JS_ValueToECMAUint32(cx, argv[0], (uint32*)&errorCode);
+	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, errorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&buffer, 0, NULL);
+	JSString * retStr = JS_NewUCStringCopyZ(cx, (jschar*)buffer);
+	LocalFree(buffer);
+	*rval = STRING_TO_JSVAL(retStr);
+	return JS_TRUE;
+}
+
 void InitWin32s(JSContext * cx, JSObject * global)
 {
 	JS_DefineConstDoubles(cx, global, win32MessageBoxTypes);
-	JS_DefineFunction(cx, global, "MessageBox", win32_messagebox, 1, 0);
+	
+	struct JSFunctionSpec win32s[] = {
+		{ "MessageBox", win32_messagebox, 1, 0 },
+		{ "GetLastError", win32_getlasterror, 0, 0 },
+		{ "GetLastErrorMessage", win32_getlasterrormsg, 0, 0 }
+	};
+
+	JS_DefineFunctions(cx, global, win32s);
 }
