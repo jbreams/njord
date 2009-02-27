@@ -1,0 +1,210 @@
+// js_xdeploy.cpp : Defines the exported functions for the DLL application.
+//
+
+#include "stdafx.h"
+#include "js_xdeploy.h"
+#include <lm.h>
+#include <comdef.h>
+#include <wbemidl.h>
+#pragma comment(lib, "wbemuuid.lib")
+
+struct JSConstDoubleSpec xdeployConsts[] = {
+	{ ComputerNamePhysicalDnsDomain, "ComputerNamePhysicalDnsDomain", 0, 0 },
+	{ ComputerNamePhysicalDnsHostname, "ComputerNamePhysicalDnsHostname", 0, 0 },
+	{ ComputerNamePhysicalNetBIOS, "ComputerNamePhysicalNetBIOS", 0, 0 },
+	{ NETSETUP_JOIN_DOMAIN, "NETSETUP_JOIN_DOMAIN", 0, 0 },
+	{ NETSETUP_ACCT_CREATE, "NETSETUP_ACCT_CREATE", 0, 0 },
+	{ NETSETUP_WIN9X_UPGRADE, "NETSETUP_WIN9X_UPGRADE", 0, 0},
+	{ NETSETUP_DOMAIN_JOIN_IF_JOINED, "NETSETUP_DOMAIN_JOIN_IF_JOINED", 0, 0 },
+	{ NETSETUP_JOIN_UNSECURE, "NETSETUP_JOIN_UNSECURE", 0, 0 },
+	{ NETSETUP_MACHINE_PWD_PASSED, "NETSETUP_MACHINE_PWD_PASSED", 0, 0 },
+	{ NETSETUP_DEFER_SPN_SET, "NETSETUP_DEFER_SPN_SET", 0, 0 },
+	{ NETSETUP_JOIN_WITH_NEW_NAME, "NETSETUP_JOIN_WITH_NEW_NAME", 0, 0 }
+};
+
+IWbemServices * pSvc = NULL;
+IWbemLocator * pLoc = NULL;
+
+JSBool setcomputername(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JSString * newName;
+	COMPUTER_NAME_FORMAT nameType = ComputerNamePhysicalNetBIOS;
+
+	if(!JS_ConvertArguments(cx, argc, argv, "S /u", &newName, (DWORD*)&nameType))
+	{
+		JS_ReportError(cx, "Unable to parse arguments in setcomputername.");
+		return JS_FALSE;
+	}
+
+	*rval = (JSBool)SetComputerNameEx(nameType, (LPWSTR)JS_GetStringChars(newName));
+	return JS_TRUE;
+}
+
+JSBool netjoindomain(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JSString * serverStr = NULL, * domainStr = NULL, *accountOUStr = NULL, *accountStr = NULL, *passwordStr = NULL;
+	DWORD joinOptions = 0;
+
+	if(!JS_ConvertArguments(cx, argc, argv, "S S S S S u", &serverStr, &domainStr, &accountOUStr, &accountStr, &passwordStr))
+	{
+		JS_ReportError(cx, "Unable to parse arguments in netjoindomain");
+		return JS_FALSE;
+	}
+
+	DWORD result = NetJoinDomain((LPWSTR)JS_GetStringChars(serverStr), (LPWSTR)JS_GetStringChars(domainStr), (LPWSTR)JS_GetStringChars(accountOUStr),
+		(LPWSTR)JS_GetStringChars(accountStr), (LPWSTR)JS_GetStringChars(passwordStr), joinOptions);
+	if(result == NERR_Success)
+	{
+		*rval = JS_TRUE;
+		return JS_TRUE;
+	}
+	return JS_NewNumberValue(cx, result, rval);
+}
+
+JSBool netlocalgroupaddmembers(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JSString * groupName;
+	JSObject * membersArray = NULL;
+	JSString * singleMember = NULL;
+
+	if(!JS_ConvertArguments(cx, argc, argv, "S *", &groupName) || argc < 2)
+	{
+		JS_ReportError(cx, "Unable to parse argument in netlocalgroupaddmembers");
+		return JS_FALSE;
+	}
+
+	if(JSVAL_IS_OBJECT(argv[1]))
+	{
+		JS_ValueToObject(cx, argv[1], &membersArray);
+		if(!JS_IsArrayObject(cx, membersArray))
+		{
+			JS_ReportError(cx, "netlocalgroupaddmembers takes either a string or an array of strings as an argument. Invalid type specified.");
+			return JS_FALSE;
+		}
+	}
+	else if(JSVAL_IS_STRING(argv[1]))
+		singleMember = JS_ValueToString(cx, argv[1]);
+	else
+	{
+		JS_ReportError(cx, "netlocalgroupaddmembers takes either a string or an array of strings as an argument. Invalid type specified.");
+		return JS_FALSE;
+	}
+	
+	LOCALGROUP_MEMBERS_INFO_3 * members = NULL;
+	DWORD memberCount = 0;
+	if(singleMember != NULL)
+	{
+		members = new LOCALGROUP_MEMBERS_INFO_3;
+		members->lgrmi3_domainandname = (LPWSTR)JS_GetStringChars(singleMember);
+		memberCount = 1;
+	}
+	else if(membersArray != NULL)
+	{
+		JS_GetArrayLength(cx, membersArray, &memberCount);
+		members = new LOCALGROUP_MEMBERS_INFO_3[memberCount];
+		for(DWORD i = 0; i < memberCount; i++)
+		{
+			jsval curMemberVal;
+			JS_GetElement(cx, membersArray, i, &curMemberVal);
+			JSString * curMemberStr = JS_ValueToString(cx, curMemberVal);
+			members[i].lgrmi3_domainandname = (LPWSTR)JS_GetStringChars(curMemberStr);
+		}
+	}
+
+	DWORD result = NetLocalGroupAddMembers(NULL, (LPWSTR)JS_GetStringChars(groupName), 3, (LPBYTE)members, memberCount);
+	delete [] members;
+
+	return JS_NewNumberValue(cx, result, rval);
+}
+
+JSBool getWMIProperty(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JSString * className, * propertyName, *retString;
+	if(!JS_ConvertArguments(cx, argc, argv, "S S", &className, &propertyName))
+	{
+		JS_ReportError(cx, "Unable to parse arguments in GetWMIProperty.");
+		return JS_FALSE;
+	}
+
+	IEnumWbemClassObject * pEnumObjInfo = NULL;
+	IWbemClassObject * pObjInfo = NULL;
+	_bstr_t outputStr;
+	DWORD nResults = 0;
+	HRESULT hr = S_OK;
+	_variant_t output;
+	hr = pSvc->CreateInstanceEnum(_bstr_t((LPWSTR)JS_GetStringChars(className)), WBEM_FLAG_FORWARD_ONLY, NULL, &pEnumObjInfo);
+	if(hr != WBEM_S_NO_ERROR)
+		goto error;
+	hr = pEnumObjInfo->Next(WBEM_INFINITE, 1, &pObjInfo, &nResults);
+	if(hr != WBEM_S_NO_ERROR)
+		goto error;
+	hr = pObjInfo->Get((LPWSTR)JS_GetStringChars(propertyName), 0, &output, NULL, NULL);
+	if(hr != WBEM_S_NO_ERROR)
+		goto error;
+
+	pObjInfo->Release();
+	pEnumObjInfo->Release();
+
+	outputStr = (_bstr_t)output;
+	retString = JS_NewUCStringCopyZ(cx, (jschar*)(LPWSTR)outputStr);
+	*rval = STRING_TO_JSVAL(retString);
+	return JS_TRUE;
+
+error:
+	if(pObjInfo != NULL)
+		pObjInfo->Release();
+	if(pEnumObjInfo != NULL)
+		pEnumObjInfo->Release();
+	return JS_NewNumberValue(cx, hr, rval);
+}
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
+{
+	CoInitialize(NULL);
+	if(CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (LPVOID*)&pLoc) != ERROR_SUCCESS)
+	{
+		JS_ReportError(cx, "Error creating WbemLocator.");
+		return FALSE;
+	}
+	
+	if(pLoc->ConnectServer(_bstr_t(TEXT("ROOT\\CIMV2")), NULL, NULL, 0, NULL, 0, 0, &pSvc) != ERROR_SUCCESS)
+	{
+		JS_ReportError(cx, "Error connecting to local WMI.");
+		pLoc->Release();
+		return FALSE;
+	}
+
+	if(CoSetProxyBlanket(pSvc, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, NULL, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE) != ERROR_SUCCESS)
+	{
+		JS_ReportError(cx, "Error setting security parameters for WMI query.");
+		return FALSE;
+	}
+
+	JSFunctionSpec xdeployFunctions[] = {
+		{ "SetComputerName", setcomputername, 2, 0 },
+		{ "NetJoinDomain", netjoindomain, 6, 0 },
+		{ "NetLocalGroupAddMembers", netlocalgroupaddmembers, 2 },
+		{ "GetWMIProperty", getWMIProperty, 2, 0 },
+		{ 0 },
+	};
+
+	JS_DefineFunctions(cx, global, xdeployFunctions);
+	JS_DefineConstDoubles(cx, global, xdeployConsts);
+	return TRUE;
+}
+
+BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
+{
+	pSvc->Release();
+	pLoc->Release();
+	return TRUE;
+}
+
+#ifdef __cplusplus
+}
+#endif
