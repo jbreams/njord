@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "xprep.h"
+#include "njord.h"
 
 typedef BOOL (__cdecl * InitExports)(JSContext * cx, JSObject * global);
 typedef BOOL (__cdecl * CleanupExports)(JSContext * cx, JSObject * global);

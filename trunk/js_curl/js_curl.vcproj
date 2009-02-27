@@ -61,7 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="../spidermonkey/$(ConfigurationName)/js32.lib curl/libcurl.lib ws2_32.lib wldap32.lib"
+				AdditionalDependencies="../spidermonkey/$(ConfigurationName)/js32.lib curl/libcurld.lib ws2_32.lib wldap32.lib curl/ssl/libeay32.lib curl/ssl/ssleay32.lib"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
 				SubSystem="2"
