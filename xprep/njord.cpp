@@ -56,8 +56,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 
 
 	InitNativeLoad(cx, global);
-	InitUIFunctions(cx, global);
-	InitVarStore(cx, global);
 	InitExec(cx, global);
 	InitFile(cx, global);
 	InitWin32s(cx, global);

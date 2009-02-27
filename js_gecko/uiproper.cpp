@@ -1,7 +1,8 @@
 #include "stdafx.h"
-#include "njord.h"
+#include "js_gecko.h"
 #include "embed.h"
 #include "varstore.h"
+#include "resource.h"
 
 #define UI_CLASS_NAME TEXT("xprep_gecko_ui")
 #define WM_SHOWUI WM_APP + 1
@@ -276,7 +277,7 @@ JSBool showUI(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * 
 		return JS_FALSE;
 	}
 
-	LPWSTR domWStr = JS_GetStringChars(xmlRepStr);
+	LPWSTR domWStr = (LPWSTR)JS_GetStringChars(xmlRepStr);
 	DWORD len = WideCharToMultiByte(CP_UTF8, 0, domWStr, -1, NULL, 0, NULL, NULL);
 	UIDATA * dataToPass = (UIDATA*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(UIDATA));
 	dataToPass->uiDOM = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, len + 1);
@@ -284,7 +285,7 @@ JSBool showUI(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * 
 
 	if(uriBase != NULL)
 	{
-		LPWSTR uriBaseStr = JS_GetStringChars(uriBase);
+		LPWSTR uriBaseStr = (LPWSTR)JS_GetStringChars(uriBase);
 		DWORD len2 = WideCharToMultiByte(CP_UTF8, 0, uriBaseStr, -1, NULL, 0, NULL, NULL);
 		dataToPass->uriBase = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, len);
 		WideCharToMultiByte(CP_UTF8, 0, uriBaseStr, -1, dataToPass->uriBase, len2, NULL, NULL);
@@ -352,9 +353,9 @@ JSBool showURI(JSContext * cx, JSObject *obj, uintN argc, jsval * argv, jsval * 
 
 	jschar * uri = JS_GetStringChars(uriStr);
 
-	DWORD len = WideCharToMultiByte(CP_UTF8, 0, uri, -1, NULL, 0, NULL, NULL);
+	DWORD len = WideCharToMultiByte(CP_UTF8, 0, (LPWSTR)uri, -1, NULL, 0, NULL, NULL);
 	dataToPass->uiDOM = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, len + 1);
-	WideCharToMultiByte(CP_UTF8, 0, uri, -1, dataToPass->uiDOM, len + 1, NULL, NULL);
+	WideCharToMultiByte(CP_UTF8, 0, (LPWSTR)uri, -1, dataToPass->uiDOM, len + 1, NULL, NULL);
 
 	if(varStoreObj != NULL)
 		dataToPass->parsingVars = (VarStore*)JS_GetPrivate(cx, varStoreObj);
@@ -386,19 +387,6 @@ JSBool showURI(JSContext * cx, JSObject *obj, uintN argc, jsval * argv, jsval * 
 	return JS_TRUE;
 }
 
-JSBool InitUIFunctions(JSContext * cx, JSObject * global)
-{
-	struct JSFunctionSpec uiMethods[] = {
-		{ "InitUI", initUI, 0, 0, 0 },
-		{ "ShowUI", showUI, 1, 0, 0 },
-		{ "ShowURI", showURI, 1, 0, 0 },
-		{ "HideUI", hideUI, 0, 0, 0 },
-		{ "ShutdownUI", shutdownUI, 0, 0, 0 },
-		{ 0, 0, 0, 0, 0 }
-	};
-
-	return JS_DefineFunctions(cx, global, uiMethods);
-}
 void UIListener::SetTitle(const char *newTitle)
 {
     HWND hWnd = (HWND)mMozView->GetParentWindow();
@@ -481,3 +469,53 @@ void UIListener::ExitModal(nsresult result)
     HWND hWnd = (HWND)mMozView->GetParentWindow();
     DestroyWindow(hWnd);
 }
+
+BOOL APIENTRY DllMain( HMODULE hModule,
+                       DWORD  ul_reason_for_call,
+                       LPVOID lpReserved
+					 )
+{
+	switch (ul_reason_for_call)
+	{
+	case DLL_PROCESS_ATTACH:
+	case DLL_THREAD_ATTACH:
+	case DLL_THREAD_DETACH:
+	case DLL_PROCESS_DETACH:
+		break;
+	}
+	return TRUE;
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
+{
+	struct JSFunctionSpec uiMethods[] = {
+		{ "InitUI", initUI, 0, 0, 0 },
+		{ "ShowUI", showUI, 1, 0, 0 },
+		{ "ShowURI", showURI, 1, 0, 0 },
+		{ "HideUI", hideUI, 0, 0, 0 },
+		{ "ShutdownUI", shutdownUI, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0 }
+	};
+	if(JS_DefineFunctions(cx, global, uiMethods) == JS_FALSE)
+		return FALSE;
+	return (BOOL)InitVarStore(cx, global);
+}
+
+BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
+{
+	HANDLE uiRunningEvent = OpenEvent(SYNCHRONIZE, FALSE, TEXT("xprep_uithread_running"));
+	if(uiRunningEvent != NULL)
+	{
+		ResetEvent(uiRunningEvent);
+		CloseHandle(uiRunningEvent);
+	}
+	return TRUE;
+}
+
+#ifdef __cplusplus
+}
+#endif
