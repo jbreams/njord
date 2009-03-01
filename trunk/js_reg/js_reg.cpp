@@ -5,212 +5,376 @@
 #include "jsstr.h"
 
 struct JSConstDoubleSpec regConsts[] = {
-	{ 1, "HKEY_LOCAL_MACHINE", 0, 0},
-	{ 2, "HKEY_USERS", 0, 0 },
-	{ 3, "HKEY_CURRENT_USER", 0, 0 },
-	{ 4, "HKEY_CURRENT_CONFIG", 0, 0 },
-	{ 5, "HKEY_CLASSES_ROOT", 0, 0 },
-	{ 6, "REG_DWORD", 0, 0 },
-	{ 7, "REG_EXPAND_SZ", 0, 0 },
-	{ 8, "REG_MULTI_SZ", 0, 0 },
-	{ 9, "REG_SZ", 0, 0 },
-	{ 0, 0, 0, 0 },
+	{ (LONGLONG)HKEY_LOCAL_MACHINE, "HKEY_LOCAL_MACHINE", 0, 0},
+	{ (LONGLONG)HKEY_USERS, "HKEY_USERS", 0, 0 },
+	{ (LONGLONG)HKEY_CURRENT_USER, "HKEY_CURRENT_USER", 0, 0 },
+	{ (LONGLONG)HKEY_CURRENT_CONFIG, "HKEY_CURRENT_CONFIG", 0, 0},
+	{ (LONGLONG)HKEY_CLASSES_ROOT, "HKEY_CLASSES_ROOT", 0, 0 },
+	{ REG_DWORD, "REG_DWORD", 0, 0 },
+	{ REG_EXPAND_SZ, "REG_EXPAND_SZ", 0, 0},
+	{ REG_MULTI_SZ, "REG_MULTI_SZ", 0, 0 },
+	{ REG_SZ, "REG_SZ", 0, 0 },
+	{ KEY_ALL_ACCESS, "KEY_ALL_ACCESS", 0, 0 },
+	{ KEY_CREATE_SUB_KEY, "KEY_CREATE_SUB_KEY", 0, 0 },
+	{ KEY_ENUMERATE_SUB_KEYS, "KEY_ENUMERATE_SUB_KEYS", 0, 0 },
+	{ KEY_EXECUTE, "KEY_EXECUTE", 0, 0 },
+	{ KEY_NOTIFY, "KEY_NOTIFY", 0, 0},
+	{ KEY_SET_VALUE, "KEY_SET_VALUE", 0, 0},
+	{ KEY_WOW64_32KEY, "KEY_WOW64_32KEY", 0, 0 },
+	{ KEY_WOW64_64KEY, "KEY_WOW64_64KEY", 0, 0 },
+	{ KEY_WRITE, "KEY_WRITE", 0, 0 },
+	{ KEY_READ, "KEY_READ", 0, 0 },
+	{ KEY_QUERY_VALUE, "KEY_QUERY_VALUE", 0, 0},
+	{ REG_CREATED_NEW_KEY, "REG_CREATED_NEW_KEY", 0, 0 },
+	{ REG_OPENED_EXISTING_KEY, "REG_OPENED_EXISTING_KEY", 0, 0 },
+	{ 0 },
 };
 
-HKEY inline ResolveRegConst(jsdouble key)
+void reg_cleanup(JSContext * cx, JSObject * obj)
 {
-	switch((WORD)key)
-	{
-	case 1:
-		return HKEY_LOCAL_MACHINE;
-	case 2:
-		return HKEY_USERS;
-	case 3:
-		return HKEY_CURRENT_USER;
-	case 4:
-		return HKEY_CURRENT_CONFIG;
-	case 5:
-		return HKEY_CLASSES_ROOT;
-	default:
-		return NULL;
-	}
+	HKEY myKey = (HKEY)JS_GetPrivate(cx, obj);
+	if(myKey != NULL)
+		RegCloseKey(myKey);
 }
 
-JSBool xprep_js_set_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *rval)
+JSClass regKeyClass = {
+    "RegKey",  /* name */
+    JSCLASS_HAS_PRIVATE,  /* flags */
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, reg_cleanup,
+    JSCLASS_NO_OPTIONAL_MEMBERS
+};
+JSObject * regKeyProto = NULL;
+
+JSBool reg_create_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	jsdouble jsHive, jsRegType;
-	JSString * jsSubKey, *jsValueName;
-	DWORD sknLen = 0, vnLen = 0, valueType = 0, contentLength = 0;
-	HKEY hSubKey = NULL, hive = NULL;
-	JSBool retval = JS_TRUE;
-	LPBYTE valueContent = NULL;
-	
-	if(argc < 5)
+	JSString * subKeyName = NULL;
+	HKEY hive = HKEY_LOCAL_MACHINE, result;
+	REGSAM desiredAccess = KEY_READ | KEY_WRITE;
+
+	if(!JS_ConvertArguments(cx, argc, argv, "u S /u", &hive, &subKeyName, &desiredAccess))
 	{
-		*rval = JS_FALSE;
-		JS_ReportError(cx, "No value supplied, cannot set registry values to NULL.");
+		JS_ReportError(cx, "Unable to parse arguments in reg_create_key");
 		return JS_FALSE;
 	}
 
-	if(JS_ConvertArguments(cx, argc, argv, "I S S I *", &jsHive, &jsSubKey, &jsValueName, &jsRegType) == JS_FALSE)
-		return JS_FALSE;
-
-
-	sknLen = JS_GetStringLength(jsSubKey);
-	hive = ResolveRegConst(jsHive);
-	switch((WORD)jsRegType)
+	LONG resultCode = RegCreateKeyExW(hive, (LPWSTR)JS_GetStringChars(subKeyName), 0, NULL, 0, desiredAccess, NULL, &result, NULL);
+	if(resultCode != ERROR_SUCCESS)
 	{
-	case 6:
+		SetLastError(resultCode);
+		*rval = JS_FALSE;
+		return JS_TRUE;
+	}
+
+	if(JS_InstanceOf(cx, obj, &regKeyClass, NULL))
+	{
+		HKEY prevKey = (HKEY)JS_GetPrivate(cx, obj);
+		if(prevKey != NULL)
+			RegCloseKey(prevKey);
+		JS_SetPrivate(cx, obj, result);
+		*rval = JS_TRUE;
+	}
+	else
+	{
+		JSObject * newRegKey = JS_NewObject(cx, &regKeyClass, regKeyProto, obj);
+		JS_SetPrivate(cx, newRegKey, result);
+		*rval = OBJECT_TO_JSVAL(newRegKey);
+	}
+	return JS_TRUE;	
+}
+
+JSBool reg_open_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JSString * subKeyName = NULL;
+	HKEY hive = HKEY_LOCAL_MACHINE, result;
+	REGSAM desiredAccess = KEY_READ | KEY_WRITE;
+
+	if(!JS_ConvertArguments(cx, argc, argv, "u S /u", &hive, &subKeyName, &desiredAccess))
+	{
+		JS_ReportError(cx, "Unable to parse arguments in reg_create_key");
+		return JS_FALSE;
+	}
+
+	LONG resultCode = RegOpenKeyEx(hive, (LPWSTR)JS_GetStringChars(subKeyName), 0, desiredAccess, &result);
+	if(resultCode != ERROR_SUCCESS)
+	{
+		SetLastError(resultCode);
+		*rval = JS_FALSE;
+		return JS_TRUE;
+	}
+
+	if(JS_InstanceOf(cx, obj, &regKeyClass, NULL))
+	{
+		HKEY prevKey = (HKEY)JS_GetPrivate(cx, obj);
+		if(prevKey != NULL)
+			RegCloseKey(prevKey);
+		JS_SetPrivate(cx, obj, result);
+		*rval = JS_TRUE;
+	}
+	else
+	{
+		JSObject * newRegKey = JS_NewObject(cx, &regKeyClass, regKeyProto, obj);
+		JS_SetPrivate(cx, newRegKey, result);
+		*rval = OBJECT_TO_JSVAL(newRegKey);
+	}
+	return JS_TRUE;	
+}
+
+JSBool reg_set_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	HKEY thisKey = (HKEY)JS_GetPrivate(cx, obj);
+	if(thisKey == NULL)
+	{
+		JS_ReportError(cx, "reg_set_value called on an uninitialized RegKey. Call RegOpenKey or RegCreateKey first!");
+		return JS_FALSE;
+	}
+
+	if(argc < 2)
+	{
+		JS_ReportError(cx, "Not enough arguments for reg_set_value, must provide value name and the value itself.");
+		return JS_FALSE;
+	}
+
+	JSString * valueName;
+	DWORD valueType;
+	if(JSVAL_IS_NUMBER(argv[1]))
 		valueType = REG_DWORD;
-		{
-			if(!JSVAL_IS_NUMBER(argv[4]))
-			{
-				JS_ReportError(cx, "Value supplied is not a number for a REG_DWORD value.");
-				*rval = JS_FALSE;
-				retval = JS_FALSE;
-				goto cleanup;
-			}
-			DWORD dw_value = 0;
-			JS_ValueToECMAUint32(cx, argv[4], &dw_value);
-			valueContent = new BYTE[sizeof(DWORD)];
-			contentLength = sizeof(DWORD);
-			memcpy_s(valueContent, sizeof(DWORD), &dw_value, sizeof(DWORD));
-		}
-		break;
-	case 7:
-		valueType = REG_EXPAND_SZ;
-		break;
-	case 8:
+	else if(JSVAL_IS_OBJECT(argv[1]) && JS_IsArrayObject(cx, JSVAL_TO_OBJECT(argv[1])))
 		valueType = REG_MULTI_SZ;
-		{
-			JSObject * valueArray;
-			JS_ValueToObject(cx, argv[4], &valueArray);
-			if(!JS_IsArrayObject(cx, valueArray))
-			{
-				JS_ReportError(cx, "Value supplied is not an array for a REG_MULTI_SZ value.");
-				*rval = JS_FALSE;
-				goto cleanup;
-			}
-			jsuint arraylen;
-			JS_GetArrayLength(cx, valueArray, &arraylen);
-			HANDLE destHeap = HeapCreate(0, 0, 0);
-			DWORD used = 0, totalSize = 4096;
-			LPBYTE destination = (LPBYTE)HeapAlloc(destHeap, 0, 4096);
-			for(jsuint i = 0; i < arraylen; i++)
-			{
-				jsval curStringVal = JSVAL_VOID;
-				if(JS_GetElement(cx, valueArray, i, &curStringVal) == JS_FALSE || curStringVal == JSVAL_VOID)
-					continue;
-				JSString * curString = JS_ValueToString(cx, curStringVal);
-				DWORD curStringLen = JS_GetStringLength(curString);
-				if(totalSize - used - ((curStringLen + 1)* sizeof(WCHAR)) < 5)
-				{
-					totalSize += 4096;
-					HeapReAlloc(destHeap, 0, destination, totalSize);
-				}
-				LPBYTE realDest = destination + used;
-				memset(realDest, 0, totalSize - used);
-				wcscpy_s((LPWSTR)realDest, (totalSize - used)/sizeof(WCHAR), (LPWSTR)JS_GetStringChars(curString));
-				used += (curStringLen + 1) * sizeof(WCHAR);
-			}
-			valueContent = new BYTE[used + sizeof(WCHAR)];
-			memset(valueContent, 0, used + sizeof(WCHAR));
-			contentLength = sizeof(WCHAR) + used;
-			memcpy_s(valueContent, contentLength, destination, used);
-			HeapDestroy(destHeap);
-		}
-		break;
-	case 9:
+	else
 		valueType = REG_SZ;
+
+	if(!JS_ConvertArguments(cx, argc, argv, "S * /u", &valueName, &valueType))
+	{
+		JS_ReportError(cx, "unable to parse arguments in reg_set_value.");
+		return JS_FALSE;
+	}
+
+	LPVOID data = NULL;
+	DWORD dataSize;
+	switch(valueType)
+	{
+	case REG_DWORD:
+		data = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(DWORD));
+		JS_ValueToECMAUint32(cx, argv[1], (DWORD*)data);
+		dataSize = sizeof(DWORD);
+		break;
+	case REG_MULTI_SZ:
+		{
+			JSObject * arrayObj;
+			JS_ValueToObject(cx, argv[1], &arrayObj);
+			DWORD nStrings = 0, curPos = 0, maxSize = sizeof(jschar) * 4096;
+			LPWSTR retStr = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(jschar) * 4096);
+			JS_GetArrayLength(cx, arrayObj, (jsuint*)&nStrings);
+			for(DWORD i = 0; i < nStrings; i++)
+			{
+				jsval curVal;
+				JS_GetElement(cx, arrayObj, i, &curVal);
+				JSString * curStr = JS_ValueToString(cx, curVal);
+				DWORD curStrLen = JS_GetStringLength(curStr);
+				if(curPos + (curStrLen * sizeof(jschar)) >= maxSize)
+				{
+					maxSize += (1024 * sizeof(jschar));
+					retStr = (LPWSTR)HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, retStr, maxSize);
+				}
+				memcpy_s(retStr, maxSize - curPos, JS_GetStringChars(curStr), curStrLen * sizeof(jschar));
+				curPos += (curStrLen + 1) * sizeof(jschar);
+			}
+
+			data = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, curPos + (sizeof(jschar) * 2));
+			memcpy_s(data, curPos + (sizeof(jschar) * 2), retStr, curPos);
+			HeapFree(GetProcessHeap(), 0, retStr);
+			dataSize = curPos + (sizeof(jschar) * 2);
+		}
 		break;
 	default:
-		*rval = JS_FALSE;
-		retval = JS_FALSE;
-		JS_ReportError(cx, "Unsupported type for RegSetValue.");
-		goto cleanup;
-	}
-
-
-	if(valueType == REG_SZ || valueType == REG_EXPAND_SZ)
-	{
-		if(!JSVAL_IS_STRING(argv[4]))
 		{
-			JS_ReportError(cx, "Value supplied is not a string for a REG_SZ or REG_EXPAND_SZ value.");
-			*rval = JS_FALSE;
-			retval = JS_FALSE;
-			goto cleanup;
+			JSString * dataStr = JS_ValueToString(cx, argv[1]);
+			DWORD strLen = (JS_GetStringLength(dataStr) + 1) * sizeof(jschar);
+			data = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, strLen);
+			memcpy_s(data, strLen, JS_GetStringChars(dataStr), JS_GetStringLength(dataStr));
+			dataSize = strLen;
 		}
-		JSString * str_value = JS_ValueToString(cx, argv[4]);
-		contentLength = (JS_GetStringLength(str_value) + 1) * sizeof(WCHAR);
-		valueContent = new BYTE[contentLength];
-		memcpy_s(valueContent, contentLength, (void*)JS_GetStringChars(str_value), contentLength);
-	}
-	if(RegCreateKeyW(hive, (LPWSTR)JS_GetStringChars(jsSubKey), &hSubKey) != ERROR_SUCCESS)
-	{
-		JS_ReportError(cx, "Unable to open or create registry key to create value");
-		*rval = JS_FALSE;
-		retval = JS_FALSE;
-		goto cleanup;
-	}
-	
-	if(RegSetValueExW(hSubKey, (LPWSTR)JS_GetStringChars(jsValueName), 0, valueType, valueContent, contentLength) != ERROR_SUCCESS)
-	{
-		JS_ReportError(cx, "Unable to set value.");
-		*rval = JS_FALSE;
-		retval = JS_FALSE;
+		break;
 	}
 
-	RegCloseKey(hSubKey);
-	*rval = JS_TRUE;
-cleanup:
-
-	if(valueContent != NULL)
-		delete [] valueContent;
-
-	return retval;
-}
-JSBool xprep_js_delete_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
-{
-	JSString * keyName, *valueName = NULL;
-	jsdouble hiveVal = 0;
-	HKEY hive, curKey;
-
-	if(!JS_ConvertArguments(cx, argc, argv, "d S /S", &hiveVal, &keyName, &valueName))
-		return JS_FALSE;
-
-	if(JS_GetStringLength(keyName) == 0)
-		return JS_FALSE;
-
-	hive = ResolveRegConst(hiveVal);
-
-	if(RegOpenKeyEx(hive, (LPWSTR)JS_GetStringChars(keyName), 0, KEY_WRITE, &curKey) != ERROR_SUCCESS)
-		return JS_FALSE;
-	LONG result = RegDeleteValue(curKey, (LPWSTR)JS_GetStringChars(valueName));
-	RegCloseKey(curKey);
+	LSTATUS result = RegSetValueExW(thisKey, (LPWSTR)JS_GetStringChars(valueName), 0, valueType, (BYTE*)data, dataSize);
+	HeapFree(GetProcessHeap(), 0, data);
 	if(result != ERROR_SUCCESS)
-		return JS_FALSE;
+	{
+		SetLastError(result);
+		*rval = JS_FALSE;
+	}
+	else
+		*rval = JS_TRUE;
 	return JS_TRUE;
 }
 
-JSBool xprep_js_create_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+JSBool reg_delete_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	JSString * keyName = NULL;
-	jsdouble jsHive = 0;
-	HKEY hive, curKey;
+	HKEY thisKey = (HKEY)JS_GetPrivate(cx, obj);
+	if(thisKey == NULL)
+	{
+		JS_ReportError(cx, "reg_delete_value called on an uninitialized RegKey. Call RegOpenKey or RegCreateKey first!");
+		return JS_FALSE;
+	}
+	if(argc == 0)
+	{
+		JS_ReportError(cx, "Insufficient arguments, must provide a value name.");
+		return JS_FALSE;
+	}
+	JSString * valueName = JS_ValueToString(cx, argv[0]);
+	LSTATUS result = RegDeleteValue(thisKey, (LPWSTR)JS_GetStringChars(valueName));
+	if(result != ERROR_SUCCESS)
+	{
+		SetLastError(result);
+		*rval = JS_FALSE;
+	}
+	else
+		*rval = JS_TRUE;
+	return JS_TRUE;
+}
 
-	if(!JS_ConvertArguments(cx, argc, argv, "d S", &jsHive, &keyName))
+JSBool reg_query_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	HKEY thisKey = (HKEY)JS_GetPrivate(cx, obj);
+	if(thisKey == NULL)
+	{
+		JS_ReportError(cx, "reg_delete_value called on an uninitialized RegKey. Call RegOpenKey or RegCreateKey first!");
 		return JS_FALSE;
+	}
+	if(argc == 0)
+	{
+		JS_ReportError(cx, "Insufficient arguments, must provide a value name.");
+		return JS_FALSE;
+	}
+	JSString * valueNameStr = JS_ValueToString(cx, argv[0]);
+	
+	DWORD valueType, valueSize;
+	LPWSTR valueName = (LPWSTR)JS_GetStringChars(valueNameStr);
+	RegQueryValueEx(thisKey, valueName, NULL, NULL, NULL, &valueSize);
+	valueSize += 10;
+	LPVOID valueData = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, valueSize);
+	LSTATUS status = RegQueryValueEx(thisKey, valueName, NULL, &valueType, (LPBYTE)valueData, &valueSize);
+	if(status != ERROR_SUCCESS)
+	{
+		HeapFree(GetProcessHeap(), 0, valueData);
+		SetLastError(status);
+		*rval = JS_FALSE;
+		return JS_TRUE;
+	}
 
-	if(JS_GetStringLength(keyName) == 0)
-		return JS_FALSE;
-	hive = ResolveRegConst(jsHive);
-	if(hive == NULL)
-		return JS_FALSE;
+	switch(valueType)
+	{
+	case REG_DWORD:
+		{
+			DWORD numberValue;
+			memcpy_s(&numberValue, sizeof(DWORD), valueData, sizeof(DWORD));
+			JS_NewNumberValue(cx, numberValue, rval);
+		}
+		break;
+	case REG_QWORD:
+		{
+			LONGLONG numberValue;
+			memcpy_s(&numberValue, sizeof(LONGLONG), valueData, sizeof(LONGLONG));
+			JS_NewNumberValue(cx, numberValue, rval);
+		}
+		break;
+	case REG_MULTI_SZ:
+		{
+			JSObject * retArray = JS_NewArrayObject(cx, 0, NULL);
+			JS_AddRoot(cx, retArray);
+			LPWSTR curPos = (LPWSTR)valueData;
+			DWORD i = 0;
+			while(curPos + 1 != TEXT('\0'))
+			{
+				DWORD curStrLen = (wcslen(curPos) + 1) * sizeof(jschar);
+				LPWSTR curStr = (LPWSTR)JS_malloc(cx, curStrLen);
+				wcscpy_s(curStr, curStrLen, curPos);
+				JSString * curStrObj = JS_NewUCString(cx, (jschar*)curStr, wcslen(curStr));
+				jsval curStrVal = STRING_TO_JSVAL(curStrObj);
+				JS_SetElement(cx, retArray, i++, &curStrVal);
+				curPos += curStrLen;				
+			}
+			JS_RemoveRoot(cx, retArray);
+			*rval = OBJECT_TO_JSVAL(retArray);
+		}
+		break;
+	case REG_SZ:
+	case REG_EXPAND_SZ:
+	case REG_LINK:
+		{
+			JSString * newStr = JS_NewUCStringCopyZ(cx, (jschar*)valueData);
+			*rval = STRING_TO_JSVAL(newStr);
+		}
+	}
+	HeapFree(GetProcessHeap(), 0, valueData);
+	return JS_TRUE;
+}
 
-	if(RegCreateKeyEx(hive, (LPWSTR)JS_GetStringChars(keyName), 0, NULL, 0, KEY_WRITE, NULL, &curKey, NULL) != ERROR_SUCCESS)
+JSBool reg_enum_values(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	HKEY curKey = (HKEY)JS_GetPrivate(cx, obj);
+	DWORD nValues = 0, bufLen = 0;
+	if(curKey == NULL)
+	{
+		JS_ReportError(cx, "reg_delete_value called on an uninitialized RegKey. Call RegOpenKey or RegCreateKey first!");
 		return JS_FALSE;
-	RegCloseKey(curKey);
-	*rval = JS_TRUE;
+	}
+
+	JSObject * arrayObj = JS_NewArrayObject(cx, 0, NULL);
+	*rval = OBJECT_TO_JSVAL(arrayObj);
+	RegQueryInfoKey(curKey, NULL, NULL, NULL, NULL, NULL, NULL, &nValues, &bufLen, NULL, NULL, NULL);
+	if(nValues == 0)
+		return JS_TRUE;
+
+	bufLen += 1;
+	LPWSTR valueName = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, bufLen * sizeof(WCHAR));
+	for(DWORD i = 0; i < nValues; i++)
+	{
+		memset(valueName, 0, bufLen);
+		DWORD nameLen = bufLen;
+		RegEnumValue(curKey, i, valueName, &nameLen, NULL, NULL, NULL, NULL);
+		if(wcslen(valueName) == 0)
+			continue;
+		JSString * copiedName = JS_NewUCStringCopyN(cx, (jschar*)valueName, nameLen);
+		jsval copiedNameVal = STRING_TO_JSVAL(copiedName);
+		JS_SetElement(cx, arrayObj, i, &copiedNameVal);
+	}
+	HeapFree(GetProcessHeap(), 0, valueName);
+	return JS_TRUE;
+}
+
+JSBool reg_enum_keys(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	HKEY curKey = (HKEY)JS_GetPrivate(cx, obj);
+	DWORD nSubKeys = 0, bufLen = 0;
+	if(curKey == NULL)
+	{
+		JS_ReportError(cx, "reg_delete_value called on an uninitialized RegKey. Call RegOpenKey or RegCreateKey first!");
+		return JS_FALSE;
+	}
+
+	JSObject * arrayObj = JS_NewArrayObject(cx, 0, NULL);
+	*rval = OBJECT_TO_JSVAL(arrayObj);
+	RegQueryInfoKey(curKey, NULL, NULL, 0, &nSubKeys, &bufLen, NULL, NULL, NULL, NULL, NULL, NULL);
+	if(nSubKeys == 0)
+		return JS_TRUE;
+
+	bufLen += 1;
+	LPWSTR keyName = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, bufLen * sizeof(WCHAR));
+	for(DWORD i = 0; i < nSubKeys; i++)
+	{
+		memset(keyName, 0, bufLen);
+		DWORD nameLen = bufLen;
+		RegEnumKeyEx(curKey, i, keyName, &nameLen, 0, NULL, NULL, NULL);
+		if(wcslen(keyName) == 0)
+			continue;
+		JSString * copiedName = JS_NewUCStringCopyN(cx, (jschar*)keyName, nameLen);
+		jsval copiedNameVal = STRING_TO_JSVAL(copiedName);
+		JS_SetElement(cx, arrayObj, i, &copiedNameVal);
+	}
+	HeapFree(GetProcessHeap(), 0, keyName);
 	return JS_TRUE;
 }
 
@@ -248,217 +412,70 @@ functionEnd:
 	return retval;
 }
 
-JSBool xprep_js_delete_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+JSBool reg_delete_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSString * subKeyName;
-	jsdouble jsHive;
 	HKEY hive;
 
-	if(!JS_ConvertArguments(cx, argc, argv, "d S", &jsHive, &subKeyName))
+	if(!JS_ConvertArguments(cx, argc, argv, "u S", &hive, &subKeyName))
 		return JS_FALSE;
 
-	hive = ResolveRegConst(jsHive);
 	if(RegDelKeyRecurse(hive, (LPWSTR)JS_GetStringChars(subKeyName)) == FALSE)
-		return JS_FALSE;
-	return JS_TRUE;
-}
-JSBool xprep_js_enum_keys(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
-{
-	JSString * jsKeyName;
-	jsdouble jsHive = 0;
-	HKEY hive = NULL, curKey = NULL;
-	DWORD nSubKeys = 0, bufLen = 0;
-	LPWSTR keyName = NULL;
-	jsval * retvals = NULL;
-
-	if(!JS_ConvertArguments(cx, argc, argv, "d S", &jsHive, &jsKeyName))
-		return JS_FALSE;
-
-	hive = ResolveRegConst(jsHive);
-
-	RegOpenKeyEx(hive, (LPWSTR)JS_GetStringChars(jsKeyName), 0, KEY_READ, &curKey);
-	if(curKey == NULL)
-	{
-		JS_ReportError(cx, "Unable to open registry key for subkey enumeration.");
-		return JS_FALSE;
-	}
-
-	RegQueryInfoKey(curKey, NULL, NULL, 0, &nSubKeys, &bufLen, NULL, NULL, NULL, NULL, NULL, NULL);
-	if(nSubKeys == 0)
-	{
-		RegCloseKey(curKey);
-		return JS_TRUE;
-	}
-
-	bufLen += 1;
-	keyName = new WCHAR[bufLen];
-
-	retvals = new jsval[nSubKeys];
-	memset(retvals, JSVAL_VOID, sizeof(jsval) * nSubKeys);
-	for(DWORD i = 0; i < nSubKeys; i++)
-	{
-		memset(keyName, 0, bufLen);
-		DWORD nameLen = bufLen;
-		RegEnumKeyEx(curKey, i, keyName, &nameLen, 0, NULL, NULL, NULL);
-		if(wcslen(keyName) == 0)
-			continue;
-		JSString * copiedName = JS_NewUCString(cx, (jschar*)keyName, nameLen + 1);
-		retvals[i] = STRING_TO_JSVAL(copiedName);
-	}
-	delete [] keyName;
-	RegCloseKey(curKey);
-
-	JSObject * retArray = JS_NewArrayObject(cx, nSubKeys, retvals);
-	if(retArray == NULL)
-		return JS_FALSE;
-	*rval = OBJECT_TO_JSVAL(retArray);
+		*rval = JS_FALSE;
+	else
+		*rval = JS_TRUE;
 	return JS_TRUE;
 }
 
-JSBool xprep_js_enum_values(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+BOOL APIENTRY DllMain( HMODULE hModule,
+                       DWORD  ul_reason_for_call,
+                       LPVOID lpReserved
+					 )
 {
-	JSString * jsKeyName;
-	jsdouble jsHive = 0;
-	HKEY hive = NULL, curKey = NULL;
-	DWORD nValues = 0, bufLen = 0;
-	LPWSTR valueName = NULL;
-	jsval * retvals = NULL;
-
-	if(!JS_ConvertArguments(cx, argc, argv, "d S", &jsHive, &jsKeyName))
-		return JS_FALSE;
-
-	hive = ResolveRegConst(jsHive);
-
-	RegOpenKeyEx(hive, (LPWSTR)JS_GetStringChars(jsKeyName), 0, KEY_READ, &curKey);
-	if(curKey == NULL)
+	switch (ul_reason_for_call)
 	{
-		JS_ReportError(cx, "Error opening registry key for value enumeration.");
-		return JS_FALSE;
+	case DLL_PROCESS_ATTACH:
+	case DLL_THREAD_ATTACH:
+	case DLL_THREAD_DETACH:
+	case DLL_PROCESS_DETACH:
+		break;
 	}
-	
-	RegQueryInfoKey(curKey,NULL, NULL, 0, NULL, NULL, NULL, &nValues, &bufLen, NULL, NULL, NULL);
-	if(nValues == 0)
-	{
-		RegCloseKey(curKey);
-		return JS_TRUE;
-	}
-
-	bufLen += 1;
-	valueName = new WCHAR[bufLen];
-
-	retvals = new jsval[nValues];
-	memset(retvals, JSVAL_VOID, sizeof(jsval) * nValues);
-	for(DWORD i = 0; i < nValues; i++)
-	{
-		memset(valueName, 0, bufLen);
-		DWORD nameLen = bufLen;
-		RegEnumValueW(curKey, i, valueName, &nameLen, 0, NULL, NULL, NULL);
-		if(wcslen(valueName) == 0)
-			continue;
-		JSString * copiedName = JS_NewUCString(cx, (jschar*)valueName, nameLen + 1);
-		retvals[i] = STRING_TO_JSVAL(copiedName);
-	}
-	delete [] valueName;
-	RegCloseKey(curKey);
-
-	JSObject * retArray = JS_NewArrayObject(cx, nValues, retvals);
-	if(retArray == NULL)
-		return JS_FALSE;
-	*rval = OBJECT_TO_JSVAL(retArray);
-	return JS_TRUE;
+	return TRUE;
 }
-JSBool xprep_js_query_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 {
-	JSString * subKeyName, *valueName;
-	jsdouble jsHive;
-	HKEY hive, curKey;
+	struct JSFunctionSpec regKeyMethods[] = {
+		{ "Create", reg_create_key, 2, 0, 0 },
+		{ "Open", reg_open_key, 2, 0, 0 },
+		{ "SetValue", reg_set_value, 2, 0, 0 },
+		{ "DeleteValue", reg_delete_value, 1, 0, 0 },
+		{ "QueryValue", reg_query_value, 1, 0, 0 },
+		{ "EnumValues", reg_enum_values, 0, 0, 0 },
+		{ "EnumKeys", reg_enum_keys, 0, 0, 0 },
+		{ 0 },
+	};
 
-	LPBYTE data;
-	DWORD dataLen = 0, dataType = 0;
+	struct JSFunctionSpec regKeyGlobalFunctions[] = {
+		{ "RegCreateKey", reg_create_key, 2, 0, 0 },
+		{ "RegOpenKey", reg_open_key, 2, 0, 0 },
+		{ "RegDeleteKey", reg_delete_key, 2, 0, 0 },
+		{ 0 },
+	};
 
-	if(!JS_ConvertArguments(cx, argc, argv, "d S S", &jsHive, &subKeyName, &valueName))
-		return JS_FALSE;
-
-	hive = ResolveRegConst(jsHive);
-	RegOpenKeyEx(hive, (LPWSTR)JS_GetStringChars(subKeyName), 0, KEY_READ, &curKey);
-	if(curKey == NULL)
-	{
-		JS_ReportError(cx, "Unable to open registry key for querying a value.");
-		return JS_FALSE;
-	}
-
-	jschar * jscValueName = JS_GetStringChars(valueName);
-	RegQueryValueEx(curKey, (LPWSTR)jscValueName, 0, &dataType, NULL, &dataLen);
-
-	switch(dataType)
-	{
-	case REG_DWORD:
-		data = (LPBYTE)new DWORD;
-		break;
-	case REG_SZ:
-	case REG_EXPAND_SZ:
-	case REG_MULTI_SZ:
-		data = (LPBYTE)new WCHAR[dataLen + 1];
-		break;
-	default:
-		RegCloseKey(curKey);
-		JS_ReportError(cx, "Specified value is an unsupported type and cannot be queried.");
-		return JS_FALSE;
-	}
-	
-	RegQueryValueExW(curKey, (LPWSTR)jscValueName, 0, NULL, data, &dataLen);
-	RegCloseKey(curKey);
-
-	JSBool returnCode = JS_FALSE;
-	JSString * strValue = NULL;
-	switch(dataType)
-	{
-	case REG_DWORD:
-		returnCode = JS_NewNumberValue(cx, (DWORD)*data, rval);
-		break;
-	case REG_SZ:
-	case REG_EXPAND_SZ:
-		strValue = JS_NewUCString(cx, (jschar*)data, dataLen);
-		if(strValue == NULL)
-			break;
-		returnCode = JS_TRUE;
-		*rval = STRING_TO_JSVAL(strValue);
-		break;
-	case REG_MULTI_SZ:
-		{
-			WORD strCount = 0;
-			LPWSTR lock = (LPWSTR)data;
-			for(DWORD i = 0; i < dataLen; i++)
-			{
-				DWORD lockLength = wcslen(lock);
-				if(lockLength != 0)
-					strCount++;
-				else
-					break;
-				lock += lockLength + 1;
-			}
-			jsval * strArrayVals = new jsval[strCount];
-			lock = (LPWSTR)data;
-			WORD j = 0;
-			while(j < strCount)
-			{
-				DWORD curStrLen = wcslen(lock);
-				JSString * newString = JS_NewUCString(cx, (jschar*)lock, curStrLen);
-				strArrayVals[j++] = STRING_TO_JSVAL(newString);
-				lock += curStrLen + 1;
-			}
-			JSObject * arrayObj = JS_NewArrayObject(cx, strCount, strArrayVals);
-			if(arrayObj == NULL)
-			{
-				returnCode = JS_FALSE;
-				break;
-			}
-			*rval = OBJECT_TO_JSVAL(arrayObj);
-			returnCode = JS_TRUE;
-		}
-		break;
-	}
-
-	delete [] data;
-	return returnCode;
+	regKeyProto = JS_InitClass(cx, global, NULL, &regKeyClass, NULL, 0, NULL, regKeyMethods, NULL, NULL);
+	if(regKeyProto == NULL)
+		return FALSE;
+	return JS_DefineFunctions(cx, global, regKeyGlobalFunctions);
 }
+
+BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
+{
+	return TRUE;
+}
+#ifdef __cplusplus
+}
+#endif

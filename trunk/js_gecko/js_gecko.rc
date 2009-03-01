@@ -54,7 +54,7 @@ END
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_XPREP               ICON                    "C:\\Users\\jreams\\Documents\\Visual Studio 2008\\Projects\\njord\\xprep\\xprep.ico"
+IDI_XPREP               ICON                    "C:\\Users\\jreams.drew-ad\\Documents\\Visual Studio 2008\\Projects\\njord\\xprep\\xprep.ico"
 #endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
 
