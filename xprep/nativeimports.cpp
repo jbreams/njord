@@ -116,10 +116,7 @@ JSBool xprep_unload_native(JSContext * cx, JSObject * obj, uintN argc, jsval * a
 JSBool xprep_unload_all_native(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	if(jsExtCount == 0)
-	{
-		JS_ReportError(cx, "No libraries are loaded.");
-		return JS_FALSE;
-	}
+		return JS_TRUE;
 
 	for(WORD i = 0; i < jsExtCount; i++)
 	{
