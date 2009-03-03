@@ -58,6 +58,86 @@ JSBool win32_getlasterrormsg(JSContext * cx, JSObject * obj, uintN argc, jsval *
 	return JS_TRUE;
 }
 
+JSBool win32_setenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JSString * name, * value;
+	JSBool local = JS_TRUE, addition = JS_TRUE;
+
+	if(!JS_ConvertArguments(cx, argc, argv, "S S /b b", &name, &value, &addition, &local))
+	{
+		JS_ReportError(cx, "Error parsing arguments in win32_setenv");
+		return JS_FALSE;
+	}
+
+	if(local)
+	{
+		*rval = (JSBool)SetEnvironmentVariable((LPWSTR)JS_GetStringChars(name), (LPWSTR)JS_GetStringChars(value));
+		return JS_TRUE;
+	}
+
+	HKEY envKey;
+	LPWSTR namec = (LPWSTR)JS_GetStringChars(name), valuec = (LPWSTR)JS_GetStringChars(value);
+	DWORD type, size, statusCode;
+	statusCode = RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment"), 0, KEY_SET_VALUE | KEY_QUERY_VALUE, &envKey);
+	if(envKey == NULL)
+	{
+		SetLastError(statusCode);
+		*rval = JS_FALSE;
+		return JS_TRUE;
+	}
+	if(addition == TRUE && RegQueryValueEx(envKey, namec, NULL, &type, NULL, &size) == ERROR_SUCCESS)
+	{
+		LPWSTR regValue = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size + sizeof(WCHAR));
+		RegQueryValueEx(envKey, namec, NULL, NULL, (LPBYTE)regValue, &size);
+		LPWSTR outputValue = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size + wcslen(valuec) + sizeof(WCHAR));
+		size = wsprintf(outputValue, TEXT("%s;%s"), regValue, valuec) + 1;
+		statusCode = RegSetValueExW(envKey, namec, 0, type, (LPBYTE)outputValue, size);
+		HeapFree(GetProcessHeap(), 0, regValue);
+		HeapFree(GetProcessHeap(), 0, outputValue);
+	}
+	else
+	{
+		if(wcschr(valuec, TEXT('%')) == NULL)
+			type = REG_SZ;
+		else
+			type = REG_EXPAND_SZ;
+
+		statusCode = RegSetValueExW(envKey, namec, 0, type, (BYTE*)valuec, wcslen(valuec) + 1);
+	}
+	RegCloseKey(envKey);
+	DWORD messageResult = 0;
+	SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, NULL, (LPARAM)(TEXT("Environment")), SMTO_NORMAL, 0, &messageResult);
+
+	return JS_NewNumberValue(cx, statusCode, rval);
+}
+
+JSBool win32_getenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	if(argc < 1)
+	{
+		JS_ReportError(cx, "getenv requires the name of the variable to be passed");
+		return JS_FALSE;
+	}
+	JSString * name = JS_ValueToString(cx, argv[0]);
+	DWORD size = GetEnvironmentVariable((LPWSTR)JS_GetStringChars(name), NULL, 0);
+	if(size == 0)
+	{
+		*rval = JS_FALSE;
+		return JS_TRUE;
+	}
+	LPWSTR valueBuffer = (LPWSTR)JS_malloc(cx, (size + 2) * sizeof(WCHAR));
+	size = GetEnvironmentVariable((LPWSTR)JS_GetStringChars(name), valueBuffer, size + 1);
+	if(size == 0)
+	{
+		JS_free(cx, valueBuffer);
+		*rval = JS_FALSE;
+		return JS_TRUE;
+	}
+	JSString * value = JS_NewUCString(cx, valueBuffer, size + 1);
+	*rval = STRING_TO_JSVAL(value);
+	return JS_TRUE;
+}
+
 void InitWin32s(JSContext * cx, JSObject * global)
 {
 	JS_DefineConstDoubles(cx, global, win32MessageBoxTypes);
@@ -65,7 +145,10 @@ void InitWin32s(JSContext * cx, JSObject * global)
 	struct JSFunctionSpec win32s[] = {
 		{ "MessageBox", win32_messagebox, 1, 0 },
 		{ "GetLastError", win32_getlasterror, 0, 0 },
-		{ "GetLastErrorMessage", win32_getlasterrormsg, 0, 0 }
+		{ "GetLastErrorMessage", win32_getlasterrormsg, 0, 0 },
+		{ "SetEnv", win32_setenv, 2, 0 },
+		{ "GetEnv", win32_getenv, 2, 0 },
+		{ 0 }
 	};
 
 	JS_DefineFunctions(cx, global, win32s);
