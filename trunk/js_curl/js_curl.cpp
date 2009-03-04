@@ -213,6 +213,42 @@ size_t write_to_buffer(void * buffer, size_t size, size_t nmemb, void * userp)
 	return totalRead;
 }
 
+
+size_t write_to_file(void * buffer, size_t size, size_t nmemb, void * userp)
+{
+	HANDLE hFile = (HANDLE)userp;
+	DWORD written = 0;
+	if(WriteFile(hFile, buffer, size * nmemb, &written, NULL) == FALSE)
+		return 0;
+	return written;
+}
+
+JSBool curl_saveas(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	if(argc < 1)
+	{
+		JS_ReportError(cx, "Must provide a path to saveas.");
+		return JS_FALSE;
+	}
+	CURL * sessionHandle = JS_GetPrivate(cx, obj);
+	JSString * path = JS_ValueToString(cx, argv[0]);
+
+	HANDLE openFile = CreateFile((LPWSTR)JS_GetStringChars(path), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+	if(openFile == NULL)
+	{
+		*rval = JS_FALSE;
+		return JS_TRUE;
+	}
+	curl_easy_setopt(sessionHandle, CURLOPT_WRITEFUNCTION, write_to_file);
+	curl_easy_setopt(sessionHandle, CURLOPT_WRITEDATA, openFile);
+	CURLcode result = curl_easy_perform(sessionHandle);
+	CloseHandle(openFile);
+	if(result != 0)
+		return JS_NewNumberValue(cx, result, rval);
+	*rval = JS_TRUE;
+	return JS_TRUE;	
+}
+
 JSBool curl_perform(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *rval)
 {
 	CURL * sessionHandle = JS_GetPrivate(cx, obj);
@@ -248,5 +284,6 @@ JSBool curl_perform(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 struct JSFunctionSpec curlClassMethods[] = {
 	{ "SetOpt", curl_setopt, 2, 0, 0 },
 	{ "Perform", curl_perform, 0, 0, 0 },
+	{ "SaveAs", curl_saveas, 1, 0, 0 },
 	{ 0, 0, 0, 0, 0 }
 };
