@@ -59,6 +59,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	InitExec(cx, global);
 	InitFile(cx, global);
 	InitWin32s(cx, global);
+	InitFindFile(cx, global);
 
 	LPWSTR scriptToRun = LoadFile(lpCmdLine);
 	if(scriptToRun == NULL)

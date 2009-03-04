@@ -188,6 +188,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\findfiles.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\loadjsfile.cpp"
 				>
 			</File>
