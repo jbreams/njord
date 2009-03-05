@@ -264,6 +264,7 @@ JSBool reg_query_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 		return JS_TRUE;
 	}
 
+	*rval = JSVAL_NULL;
 	switch(valueType)
 	{
 	case REG_DWORD:
@@ -427,6 +428,42 @@ JSBool reg_delete_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	return JS_TRUE;
 }
 
+
+JSBool reg_load_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	HKEY hive;
+	JSString * subKeyNameStr = NULL, * fileName;
+
+	LPWSTR subKeyName = NULL;
+	if(!JS_ConvertArguments(cx, argc, argv, "u S /S", &hive, &fileName, &subKeyNameStr))
+	{
+		JS_ReportError(cx, "Error parsing arguments in reg_load_hive");
+		return JS_FALSE;
+	}
+
+	if(subKeyNameStr != NULL)
+		subKeyName = (LPWSTR)JS_GetStringChars(subKeyNameStr); 
+
+	*rval = (JSBool)RegLoadKey(hive, subKeyName, (LPWSTR)JS_GetStringChars(fileName));
+	return JS_TRUE;
+}
+
+JSBool reg_unload_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	HKEY hive;
+	JSString * subKeyNameStr;
+
+	LPWSTR subKeyName = NULL;
+	if(!JS_ConvertArguments(cx, argc, argv, "u S", &hive, &subKeyNameStr))
+	{
+		JS_ReportError(cx, "Error parsing arguments in reg_load_hive");
+		return JS_FALSE;
+	}
+
+	*rval = (JSBool)RegUnLoadKey(hive, (LPWSTR)JS_GetStringChars(subKeyNameStr));
+	return JS_TRUE;
+}
+
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,
                        LPVOID lpReserved
@@ -463,6 +500,8 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "RegCreateKey", reg_create_key, 2, 0, 0 },
 		{ "RegOpenKey", reg_open_key, 2, 0, 0 },
 		{ "RegDeleteKey", reg_delete_key, 2, 0, 0 },
+		{ "RegLoadHive", reg_load_hive, 2, 0, 0 },
+		{ "RegUnloadHive", reg_unload_hive, 2, 0, 0 },
 		{ 0 },
 	};
 
