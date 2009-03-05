@@ -27,7 +27,11 @@ JSBool BranchCallback(JSContext * cx, JSScript * script)
 
 void ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 {
-	printf(message);
+	LPSTR messageBuf = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 4096);
+	sprintf_s(messageBuf, 4096, "Fatal error in nJord script!\nError message (%u): %s\nOffending source line (%u): %s\nError token: %s\n",
+		report->errorNumber, message, report->lineno, report->linebuf, report->tokenptr);
+	MessageBoxA(NULL, messageBuf, "nJord Fatal Error", MB_OK);
+	HeapFree(GetProcessHeap(), 0, messageBuf);
 }
 
 int APIENTRY _tWinMain(HINSTANCE hInstance,

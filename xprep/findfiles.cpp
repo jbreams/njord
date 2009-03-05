@@ -60,7 +60,7 @@ JSBool find_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval
 	JS_SetProperty(cx, retObj, "altFileName", &altFileNameVal);
 
 	JS_NewNumberValue(cx, w32FD.dwFileAttributes, &attributes);
-	JS_NewNumberValue(cx, (jsdouble)(LONGLONG)(w32FD.nFileSizeLow | w32FD.nFileSizeHigh << 32), &fileSize);
+	JS_NewNumberValue(cx, (jsdouble)(LONGLONG)(w32FD.nFileSizeLow | w32FD.nFileSizeHigh << 31), &fileSize);
 	JS_SetProperty(cx, retObj, "attributes", &attributes);
 	JS_SetProperty(cx, retObj, "fileSize", &fileSize);
 
