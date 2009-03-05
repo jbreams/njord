@@ -139,9 +139,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="js32.lib xpcomglue.lib ../geckoembed/$(ConfigurationName)/embedlib.lib"
+				AdditionalDependencies="js32.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;../spidermonkey/$(ConfigurationName)&quot;;&quot;b:\xulrunner-sdk\lib&quot;"
+				AdditionalLibraryDirectories="&quot;../spidermonkey/$(ConfigurationName)&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				OptimizeReferences="2"

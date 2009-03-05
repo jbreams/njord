@@ -223,7 +223,7 @@ JSBool initUI(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * 
 
 	if(argc > 1)
 	{
-		JSString * pathToGRE = JS_ValueToString(argv[0]);
+		JSString * pathToGRE = JS_ValueToString(cx, argv[0]);
 		SetEnvironmentVariable(TEXT("GRE_HOME"), (LPWSTR)JS_GetStringChars(pathToGRE));
 	}
 
