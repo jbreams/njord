@@ -220,6 +220,13 @@ JSBool initUI(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * 
 	JSBool retval = JS_TRUE;
 	if(topWnd != NULL)
 		return JS_TRUE;
+
+	if(argc > 1)
+	{
+		JSString * pathToGRE = JS_ValueToString(argv[0]);
+		SetEnvironmentVariable(TEXT("GRE_HOME"), (LPWSTR)JS_GetStringChars(pathToGRE));
+	}
+
 	HANDLE uiRunningEvent = CreateEvent(NULL, TRUE, FALSE, TEXT("xprep_uithread_running"));
 	HANDLE threadHandle = NULL;
 	if(uiRunningEvent == NULL)
