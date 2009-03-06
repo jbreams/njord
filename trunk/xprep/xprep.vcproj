@@ -204,6 +204,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\registry.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\stdafx.cpp"
 				>
 				<FileConfiguration

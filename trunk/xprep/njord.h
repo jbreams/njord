@@ -9,3 +9,4 @@ JSBool InitExec(JSContext * cx, JSObject * global);
 JSBool InitFile(JSContext * cx, JSObject * global);
 void InitWin32s(JSContext * cx, JSObject * global);
 JSBool InitFindFile(JSContext * cx, JSObject * global);
+JSBool InitRegistry(JSContext * cx, JSObject * global);
