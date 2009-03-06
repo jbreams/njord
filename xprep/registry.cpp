@@ -1,8 +1,5 @@
-// js_reg.cpp : Defines the exported functions for the DLL application.
-//
 #include "stdafx.h"
-#include "jsapi.h"
-#include "jsstr.h"
+#include "njord.h"
 
 struct JSConstDoubleSpec regConsts[] = {
 	{ (LONGLONG)HKEY_LOCAL_MACHINE, "HKEY_LOCAL_MACHINE", 0, 0},
@@ -464,26 +461,7 @@ JSBool reg_unload_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 	return JS_TRUE;
 }
 
-BOOL APIENTRY DllMain( HMODULE hModule,
-                       DWORD  ul_reason_for_call,
-                       LPVOID lpReserved
-					 )
-{
-	switch (ul_reason_for_call)
-	{
-	case DLL_PROCESS_ATTACH:
-	case DLL_THREAD_ATTACH:
-	case DLL_THREAD_DETACH:
-	case DLL_PROCESS_DETACH:
-		break;
-	}
-	return TRUE;
-}
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
+BOOL InitRegistry(JSContext * cx, JSObject * global)
 {
 	struct JSFunctionSpec regKeyMethods[] = {
 		{ "Create", reg_create_key, 2, 0, 0 },
@@ -511,11 +489,3 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		return FALSE;
 	return JS_DefineFunctions(cx, global, regKeyGlobalFunctions);
 }
-
-BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
-{
-	return TRUE;
-}
-#ifdef __cplusplus
-}
-#endif

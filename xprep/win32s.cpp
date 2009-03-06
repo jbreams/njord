@@ -138,6 +138,30 @@ JSBool win32_getenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	return JS_TRUE;
 }
 
+
+JSBool win32_setcurrentdirectory(JSContext * cx, JSObject * obj, uintN argc, jsval *argv, jsval * rval)
+{
+	if(argc < 1 || JSVAL_IS_STRING(*argv))
+	{
+		JS_ReportError(cx, "Must provide directory name to setcurrentdirectory.");
+		return JS_FALSE;
+	}
+
+	JSString * pathName = JS_ValueToString(cx, *argv);
+	*rval = (JSBool)SetCurrentDirectory((LPWSTR)JS_GetStringChars(pathName));
+	return JS_TRUE;
+}
+
+JSBool win32_getcurrentdirectory(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	DWORD size = GetCurrentDirectory(0, NULL);
+	size += sizeof(WCHAR) * 2;
+	LPWSTR buffer = (LPWSTR)JS_malloc(cx, size);
+	size = GetCurrentDirectory(size + (sizeof(WCHAR) * 2), buffer);
+	*rval = STRING_TO_JSVAL(JS_NewUCString(cx, buffer, size));
+	return JS_TRUE;
+}
+
 void InitWin32s(JSContext * cx, JSObject * global)
 {
 	JS_DefineConstDoubles(cx, global, win32MessageBoxTypes);
@@ -148,6 +172,8 @@ void InitWin32s(JSContext * cx, JSObject * global)
 		{ "GetLastErrorMessage", win32_getlasterrormsg, 0, 0 },
 		{ "SetEnv", win32_setenv, 2, 0 },
 		{ "GetEnv", win32_getenv, 2, 0 },
+		{ "SetCurrentDirectory", win32_setcurrentdirectory, 1, 0 },
+		{ "GetCurrentDirectory", win32_getcurrentdirectory, 0, 0 },
 		{ 0 }
 	};
 
