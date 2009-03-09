@@ -44,19 +44,31 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 
 	rt = JS_NewRuntime(0x4000000);
 	if(rt == NULL)
+	{
+		MessageBox(NULL, TEXT("Error initializing JS runtime."), TEXT("nJord Error"), MB_OK);
 		return 2;
+	}
 	cx = JS_NewContext(rt, 0x1000);
 	if(cx == NULL)
+	{
+		MessageBox(NULL, TEXT("Error creating JS context."), TEXT("nJord Error"), MB_OK);
 		return 2;
+	}
 
 	global = JS_NewObject(cx, &global_class, NULL, NULL);
 	if(global == NULL)
+	{
+		MessageBox(NULL, TEXT("Error creating global JS object."), TEXT("nJord Error"), MB_OK);
 		return 2;
+	}
 
 	JS_SetBranchCallback(cx, BranchCallback);
 	JS_SetErrorReporter(cx, ErrorReporter);
 	if(JS_InitStandardClasses(cx, global) == JS_FALSE)
+	{
+		MessageBox(NULL, TEXT("Error initializing standard JS classes."), TEXT("nJord Error"), MB_OK);
 		return 2;
+	}
 
 
 	InitNativeLoad(cx, global);
@@ -68,7 +80,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 
 	LPWSTR scriptToRun = LoadFile(lpCmdLine);
 	if(scriptToRun == NULL)
+	{
+		MessageBox(NULL, TEXT("Unable to load specified script. Cannot continue."), TEXT("nJord Error"), MB_OK);
 		return 3;
+	}
 	jsval result;
 	JS_EvaluateUCScript(cx, global, scriptToRun, ::wcslen(scriptToRun), "njord", 1, &result);
 
