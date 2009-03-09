@@ -18,7 +18,6 @@
 #include <tchar.h>
 #include <comdef.h>
 
-#define XP_WIN
 #include "jsapi.h"
 #include "jsstr.h"
 
