@@ -86,6 +86,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	}
 	jsval result;
 	JS_EvaluateUCScript(cx, global, scriptToRun, ::wcslen(scriptToRun), "njord", 1, &result);
+	HeapFree(GetProcessHeap(), 0, scriptToRun);
 
 	JS_DestroyContext(cx);
 	JS_DestroyRuntime(rt);
