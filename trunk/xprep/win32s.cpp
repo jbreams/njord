@@ -162,6 +162,18 @@ JSBool win32_getcurrentdirectory(JSContext * cx, JSObject * obj, uintN argc, jsv
 	return JS_TRUE;
 }
 
+JSBool win32_setdlldirectory(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	if(argc < 1)
+	{
+		JS_ReportError(cx, "Must pass a path to SetDllDirectory.");
+		return JS_FALSE;
+	}
+	JSString * str = JS_ValueToString(cx, *argv);
+	*rval = (JSBool)SetDllDirectory((LPWSTR)JS_GetStringChars(str));
+	return JS_TRUE;
+}
+
 void InitWin32s(JSContext * cx, JSObject * global)
 {
 	JS_DefineConstDoubles(cx, global, win32MessageBoxTypes);
@@ -174,6 +186,7 @@ void InitWin32s(JSContext * cx, JSObject * global)
 		{ "GetEnv", win32_getenv, 2, 0 },
 		{ "SetCurrentDirectory", win32_setcurrentdirectory, 1, 0 },
 		{ "GetCurrentDirectory", win32_getcurrentdirectory, 0, 0 },
+		{ "SetDllDirectory", win32_setdlldirectory, 1, 0 },
 		{ 0 }
 	};
 
