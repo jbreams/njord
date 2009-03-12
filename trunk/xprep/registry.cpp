@@ -189,7 +189,7 @@ JSBool reg_set_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 			JSString * dataStr = JS_ValueToString(cx, argv[1]);
 			DWORD strLen = (JS_GetStringLength(dataStr) + 1) * sizeof(jschar);
 			data = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, strLen);
-			memcpy_s(data, strLen, JS_GetStringChars(dataStr), JS_GetStringLength(dataStr));
+			memcpy_s(data, strLen, JS_GetStringChars(dataStr), strLen - sizeof(jschar));
 			dataSize = strLen;
 		}
 		break;

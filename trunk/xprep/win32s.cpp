@@ -19,6 +19,7 @@ struct JSConstDoubleSpec win32MessageBoxTypes[] = {
 	{ MB_ICONSTOP, "MB_ICONSTOP", 0, 0 },
 	{ MB_ICONERROR, "MB_ICONERROR", 0, 0 },
 	{ MB_ICONHAND, "MB_ICONHAND", 0, 0 },
+	{ 0 },
 };
 
 JSBool win32_messagebox(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *rval)
