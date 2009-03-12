@@ -182,7 +182,7 @@ JSBool curl_setopt(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	{
 		return JS_NewNumberValue(cx, result, rval);
 	}
-	*rval = JS_TRUE;
+	*rval = JSVAL_TRUE;
 	return JS_TRUE;
 }
 
@@ -236,7 +236,7 @@ JSBool curl_saveas(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	HANDLE openFile = CreateFile((LPWSTR)JS_GetStringChars(path), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 	if(openFile == NULL)
 	{
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
 	curl_easy_setopt(sessionHandle, CURLOPT_WRITEFUNCTION, write_to_file);
@@ -245,7 +245,7 @@ JSBool curl_saveas(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	CloseHandle(openFile);
 	if(result != 0)
 		return JS_NewNumberValue(cx, result, rval);
-	*rval = JS_TRUE;
+	*rval = JSVAL_TRUE;
 	return JS_TRUE;	
 }
 
