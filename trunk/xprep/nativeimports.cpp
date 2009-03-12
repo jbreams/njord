@@ -62,7 +62,7 @@ JSBool xprep_load_native(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	cleanupRoutines[jsExtCount].libName = ::_tcsdup(fileName);
 	cleanupRoutines[jsExtCount].libHandle = jsLib;
 	jsExtCount++;
-	*rval = JS_TRUE;
+	*rval = JSVAL_TRUE;
 	return JS_TRUE;
 }
 
@@ -138,10 +138,13 @@ JSBool load_js_lib(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 
 	LPWSTR loadedFileContents = LoadFile((LPWSTR)JS_GetStringChars(fileName));
 	if(loadedFileContents == NULL)
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 	else
 	{
-		*rval = JS_EvaluateUCScript(cx, obj, loadedFileContents, wcslen(loadedFileContents), JS_GetStringBytes(fileName), 1, rval);
+		if(JS_EvaluateUCScript(cx, obj, loadedFileContents, wcslen(loadedFileContents), JS_GetStringBytes(fileName), 1, rval))
+			*rval = JSVAL_TRUE;
+		else
+			*rval = JSVAL_FALSE;
 		HeapFree(GetProcessHeap(), 0, loadedFileContents);
 	}
 	return JS_TRUE;

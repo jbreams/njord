@@ -59,7 +59,7 @@ JSBool reg_create_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	if(resultCode != ERROR_SUCCESS)
 	{
 		SetLastError(resultCode);
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
 
@@ -69,7 +69,7 @@ JSBool reg_create_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		if(prevKey != NULL)
 			RegCloseKey(prevKey);
 		JS_SetPrivate(cx, obj, result);
-		*rval = JS_TRUE;
+		*rval = JSVAL_TRUE;
 	}
 	else
 	{
@@ -96,7 +96,7 @@ JSBool reg_open_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	if(resultCode != ERROR_SUCCESS)
 	{
 		SetLastError(resultCode);
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
 
@@ -106,7 +106,7 @@ JSBool reg_open_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 		if(prevKey != NULL)
 			RegCloseKey(prevKey);
 		JS_SetPrivate(cx, obj, result);
-		*rval = JS_TRUE;
+		*rval = JSVAL_TRUE;
 	}
 	else
 	{
@@ -200,10 +200,10 @@ JSBool reg_set_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	if(result != ERROR_SUCCESS)
 	{
 		SetLastError(result);
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 	}
 	else
-		*rval = JS_TRUE;
+		*rval = JSVAL_TRUE;
 	return JS_TRUE;
 }
 
@@ -225,10 +225,10 @@ JSBool reg_delete_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 	if(result != ERROR_SUCCESS)
 	{
 		SetLastError(result);
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 	}
 	else
-		*rval = JS_TRUE;
+		*rval = JSVAL_TRUE;
 	return JS_TRUE;
 }
 
@@ -257,7 +257,7 @@ JSBool reg_query_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 	{
 		HeapFree(GetProcessHeap(), 0, valueData);
 		SetLastError(status);
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
 
@@ -419,9 +419,9 @@ JSBool reg_delete_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		return JS_FALSE;
 
 	if(RegDelKeyRecurse(hive, (LPWSTR)JS_GetStringChars(subKeyName)) == FALSE)
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 	else
-		*rval = JS_TRUE;
+		*rval = JSVAL_TRUE;
 	return JS_TRUE;
 }
 
@@ -441,7 +441,10 @@ JSBool reg_load_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	if(subKeyNameStr != NULL)
 		subKeyName = (LPWSTR)JS_GetStringChars(subKeyNameStr); 
 
-	*rval = (JSBool)RegLoadKey(hive, subKeyName, (LPWSTR)JS_GetStringChars(fileName));
+	if(RegLoadKey(hive, subKeyName, (LPWSTR)JS_GetStringChars(fileName)))
+		*rval = JSVAL_TRUE;
+	else
+		*rval = JSVAL_FALSE;
 	return JS_TRUE;
 }
 
@@ -457,7 +460,10 @@ JSBool reg_unload_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 		return JS_FALSE;
 	}
 
-	*rval = (JSBool)RegUnLoadKey(hive, (LPWSTR)JS_GetStringChars(subKeyNameStr));
+	if(RegUnLoadKey(hive, (LPWSTR)JS_GetStringChars(subKeyNameStr)))
+		*rval = JSVAL_TRUE;
+	else
+		*rval = JSVAL_FALSE;
 	return JS_TRUE;
 }
 
