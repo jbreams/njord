@@ -16,7 +16,6 @@
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
-#include <comdef.h>
 
 #include "jsapi.h"
 #include "jsstr.h"
