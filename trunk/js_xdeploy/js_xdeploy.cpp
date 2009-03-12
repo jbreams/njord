@@ -36,7 +36,7 @@ JSBool setcomputername(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 		return JS_FALSE;
 	}
 
-	*rval = (JSBool)SetComputerNameEx(nameType, (LPWSTR)JS_GetStringChars(newName));
+	*rval = SetComputerNameEx(nameType, (LPWSTR)JS_GetStringChars(newName)) != 0 ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
 
@@ -45,21 +45,23 @@ JSBool netjoindomain(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	JSString * serverStr = NULL, * domainStr = NULL, *accountOUStr = NULL, *accountStr = NULL, *passwordStr = NULL;
 	DWORD joinOptions = 0;
 
-	if(!JS_ConvertArguments(cx, argc, argv, "S S S S S u", &serverStr, &domainStr, &accountOUStr, &accountStr, &passwordStr))
+	if(!JS_ConvertArguments(cx, argc, argv, "S S S S u", &domainStr, &accountOUStr, &accountStr, &passwordStr, &joinOptions))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in netjoindomain");
 		return JS_FALSE;
 	}
 
-	DWORD result = NetJoinDomain((LPWSTR)JS_GetStringChars(serverStr), (LPWSTR)JS_GetStringChars(domainStr), (LPWSTR)JS_GetStringChars(accountOUStr),
+	DWORD result = NetJoinDomain(NULL, (LPWSTR)JS_GetStringChars(domainStr), (LPWSTR)JS_GetStringChars(accountOUStr),
 		(LPWSTR)JS_GetStringChars(accountStr), (LPWSTR)JS_GetStringChars(passwordStr), joinOptions);
 	if(result == NERR_Success)
 	{
-		*rval = JS_TRUE;
+		*rval = JSVAL_TRUE;
 		return JS_TRUE;
 	}
 	return JS_NewNumberValue(cx, result, rval);
 }
+
+//dpyNTvMGHLyf
 
 JSBool netlocalgroupaddmembers(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
