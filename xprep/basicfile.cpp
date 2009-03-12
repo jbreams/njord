@@ -14,8 +14,7 @@ JSBool fs_copy_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 
 	jschar * source = JS_GetStringChars(sourceStr);
 	jschar * destination = JS_GetStringChars(destinationStr);
-
-	*rval = (JSBool)CopyFile((LPWSTR)source, (LPWSTR)destination, (BOOL)overwrite);
+	*rval = CopyFile((LPWSTR)source, (LPWSTR)destination, (BOOL)overwrite) ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
 
@@ -33,7 +32,7 @@ JSBool fs_move_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	jschar * source = JS_GetStringChars(sourceStr);
 	jschar * destination = JS_GetStringChars(destinationStr);
 
-	*rval = (JSBool)MoveFileEx((LPWSTR)source, (LPWSTR)destination, flags);
+	*rval = MoveFileEx((LPWSTR)source, (LPWSTR)destination, flags) ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
 JSBool fs_delete_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
@@ -41,7 +40,7 @@ JSBool fs_delete_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	JSString * sourceStr = JS_ValueToString(cx, argv[0]);
 	jschar * source = JS_GetStringChars(sourceStr);
 
-	*rval = (JSBool)DeleteFile((LPWSTR)source);
+	*rval = DeleteFile((LPWSTR)source) ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
 JSBool fs_read_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
@@ -69,7 +68,7 @@ JSBool fs_read_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	if(ReadFile(hFile, localBuffer, nBytesToRead, &actualRead, NULL) == FALSE || actualRead == 0)
 	{
 		JS_free(cx, localBuffer);
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
 	
@@ -118,7 +117,10 @@ JSBool fs_write_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		toWrite = (LPBYTE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, ansiLen);
 		toWriteLen = WideCharToMultiByte(CP_UTF8, 0, (LPWSTR)JS_GetStringChars(strToWrite), -1, (LPSTR)toWrite, ansiLen, NULL, NULL);
 	}
-	*rval = (JSBool)WriteFile(hFile, (LPVOID)toWrite, toWriteLen, &actualWrite, NULL);
+	if(WriteFile(hFile, (LPVOID)toWrite, toWriteLen, &actualWrite, NULL))
+		*rval = JSVAL_TRUE;
+	else
+		*rval = JSVAL_FALSE;
 
 	if(!unicode)
 		HeapFree(GetProcessHeap(), 0, toWrite);
@@ -159,7 +161,8 @@ JSBool fs_seteof_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		return JS_FALSE;
 	}
 	
-	*rval = (JSBool)SetEndOfFile(hFile);
+	if(SetEndOfFile(hFile))
+		*rval = JSVAL_TRUE;
 	return JS_TRUE;
 }
 
@@ -199,7 +202,7 @@ JSBool fs_seek_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	{
 	case INVALID_SET_FILE_POINTER:
 	case ERROR_NEGATIVE_SEEK:
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		break;
 	default:
 		JS_NewNumberValue(cx, retCode, rval);
@@ -233,12 +236,12 @@ JSBool fs_create_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	if(hFile == INVALID_HANDLE_VALUE)
 	{
 		DWORD errorCode = GetLastError();
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 	}
 	else
 	{
 		JS_SetPrivate(cx, obj, (void*)hFile);
-		*rval = JS_TRUE;
+		*rval = JSVAL_TRUE;
 	}
 	return JS_TRUE;
 }

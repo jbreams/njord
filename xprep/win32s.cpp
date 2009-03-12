@@ -72,7 +72,7 @@ JSBool win32_setenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 
 	if(local)
 	{
-		*rval = (JSBool)SetEnvironmentVariable((LPWSTR)JS_GetStringChars(name), (LPWSTR)JS_GetStringChars(value));
+		*rval = SetEnvironmentVariable((LPWSTR)JS_GetStringChars(name), (LPWSTR)JS_GetStringChars(value)) ? JSVAL_TRUE : JSVAL_FALSE;
 		return JS_TRUE;
 	}
 
@@ -83,7 +83,7 @@ JSBool win32_setenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	if(envKey == NULL)
 	{
 		SetLastError(statusCode);
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
 	if(addition == TRUE && RegQueryValueEx(envKey, namec, NULL, &type, NULL, &size) == ERROR_SUCCESS)
@@ -123,7 +123,7 @@ JSBool win32_getenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	DWORD size = GetEnvironmentVariable((LPWSTR)JS_GetStringChars(name), NULL, 0);
 	if(size == 0)
 	{
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
 	LPWSTR valueBuffer = (LPWSTR)JS_malloc(cx, (size + 2) * sizeof(WCHAR));
@@ -131,7 +131,7 @@ JSBool win32_getenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	if(size == 0)
 	{
 		JS_free(cx, valueBuffer);
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
 	JSString * value = JS_NewUCString(cx, valueBuffer, size + 1);
@@ -149,7 +149,7 @@ JSBool win32_setcurrentdirectory(JSContext * cx, JSObject * obj, uintN argc, jsv
 	}
 
 	JSString * pathName = JS_ValueToString(cx, *argv);
-	*rval = (JSBool)SetCurrentDirectory((LPWSTR)JS_GetStringChars(pathName));
+	*rval = SetCurrentDirectory((LPWSTR)JS_GetStringChars(pathName)) ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
 
@@ -171,7 +171,7 @@ JSBool win32_setdlldirectory(JSContext * cx, JSObject * obj, uintN argc, jsval *
 		return JS_FALSE;
 	}
 	JSString * str = JS_ValueToString(cx, *argv);
-	*rval = (JSBool)SetDllDirectory((LPWSTR)JS_GetStringChars(str));
+	*rval = SetDllDirectory((LPWSTR)JS_GetStringChars(str)) ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
 

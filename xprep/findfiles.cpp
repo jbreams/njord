@@ -28,11 +28,11 @@ JSBool find_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval
 		findHandle = JS_GetPrivate(cx, obj);
 		if(FindNextFile(findHandle, &w32FD) == FALSE)
 		{
-			*rval = JS_FALSE;
+			*rval = JSVAL_FALSE;
 			return JS_TRUE;
 		}
 		retObj = obj;
-		*rval = JS_TRUE;
+		*rval = JSVAL_TRUE;
 	}
 	else
 	{
@@ -45,7 +45,7 @@ JSBool find_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval
 		findHandle = FindFirstFile((LPWSTR)JS_GetStringChars(searchString), &w32FD);
 		if(findHandle == INVALID_HANDLE_VALUE)
 		{
-			*rval = JS_FALSE;
+			*rval = JSVAL_FALSE;
 			return JS_TRUE;
 		}
 		retObj = JS_NewObject(cx, &findFileClass, findFileProto, obj);

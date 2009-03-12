@@ -97,7 +97,7 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 
 	if(!CreateProcessW(appName, (LPWSTR)JS_GetStringChars(jsCmdLine), NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
 	{
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		goto functionEnd;
 	}
 
@@ -105,7 +105,7 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	{
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
-		*rval = JS_TRUE;
+		*rval = JSVAL_TRUE;
 		return JS_TRUE;
 	}
 
@@ -191,14 +191,14 @@ JSBool njord_control_service(JSContext * cx, JSObject * obj, uintN argc, jsval *
 	SC_HANDLE scDBHandle = OpenSCManager(NULL, NULL, GENERIC_READ | GENERIC_EXECUTE);
 	if(scDBHandle == NULL)
 	{
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
 
 	SC_HANDLE scHandle = OpenService(scDBHandle, (LPWSTR)JS_GetStringChars(serviceName), GENERIC_EXECUTE);
 	if(scHandle == NULL)
 	{
-		*rval = JS_FALSE;
+		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
 
