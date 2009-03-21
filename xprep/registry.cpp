@@ -195,7 +195,7 @@ JSBool reg_set_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		break;
 	}
 
-	LSTATUS result = RegSetValueExW(thisKey, (LPWSTR)JS_GetStringChars(valueName), 0, valueType, (BYTE*)data, dataSize);
+	LONG result = RegSetValueExW(thisKey, (LPWSTR)JS_GetStringChars(valueName), 0, valueType, (BYTE*)data, dataSize);
 	HeapFree(GetProcessHeap(), 0, data);
 	if(result != ERROR_SUCCESS)
 	{
@@ -467,6 +467,26 @@ JSBool reg_unload_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 	return JS_TRUE;
 }
 
+JSBool reg_flush_key(JSContext * cx, JSObject *obj, uintN argc, jsval * argv, jsval * rval)
+{
+	HKEY curKey = (HKEY)JS_GetPrivate(cx, obj);
+	if(curKey == NULL)
+	{
+		JS_ReportError(cx, "reg_delete_value called on an uninitialized RegKey. Call RegOpenKey or RegCreateKey first!");
+		return JS_FALSE;
+	}
+
+	LONG result = RegFlushKey(curKey);
+	if(result == ERROR_SUCCESS)
+		*rval = JSVAL_TRUE;
+	else
+	{
+		SetLastError(result);
+		*rval = JSVAL_FALSE;
+	}
+	return JS_TRUE;
+}
+
 BOOL InitRegistry(JSContext * cx, JSObject * global)
 {
 	struct JSFunctionSpec regKeyMethods[] = {
@@ -477,6 +497,7 @@ BOOL InitRegistry(JSContext * cx, JSObject * global)
 		{ "QueryValue", reg_query_value, 1, 0, 0 },
 		{ "EnumValues", reg_enum_values, 0, 0, 0 },
 		{ "EnumKeys", reg_enum_keys, 0, 0, 0 },
+		{ "Flush", reg_flush_key, 0, 0, 0 },
 		{ 0 },
 	};
 

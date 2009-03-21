@@ -46,6 +46,47 @@ JSBool win32_getlasterror(JSContext * cx, JSObject * obj, uintN argc, jsval * ar
 	return JS_NewNumberValue(cx, GetLastError(), rval);
 }
 
+JSBool win32_impersonateuser(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JSString * username, * password, *domain = NULL;
+	DWORD logonType = LOGON32_LOGON_INTERACTIVE;
+	if(!JS_ConvertArguments(cx, argc, argv, "S S /S u", &username, &password, &domain, &logonType))
+	{
+		JS_ReportError(cx, "Unable to parse arguments in ImpersonateUser");
+		return JS_FALSE;
+	}
+
+	if(logonType == LOGON32_LOGON_NETWORK)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+
+	LPWSTR domainName = NULL;
+	if(domain != NULL)
+		domainName = (LPWSTR)JS_GetStringChars(domain);
+
+	HANDLE newToken = NULL;
+	if(!LogonUser((LPWSTR)JS_GetStringChars(username), domainName, (LPWSTR)JS_GetStringChars(password), logonType, LOGON32_PROVIDER_DEFAULT, &newToken))
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+
+	if(!ImpersonateLoggedOnUser(newToken))
+		*rval = JSVAL_FALSE;
+	else
+		*rval = JSVAL_TRUE;
+	CloseHandle(newToken);
+	return JS_TRUE;
+}
+
+JSBool win32_reverttoself(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	*rval = RevertToSelf() == TRUE ? JSVAL_TRUE : JSVAL_FALSE;
+	return JS_TRUE;
+}
+
 JSBool win32_getlasterrormsg(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	LPWSTR buffer;
@@ -142,7 +183,7 @@ JSBool win32_getenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 
 JSBool win32_setcurrentdirectory(JSContext * cx, JSObject * obj, uintN argc, jsval *argv, jsval * rval)
 {
-	if(argc < 1 || JSVAL_IS_STRING(*argv))
+	if(argc < 1 || !JSVAL_IS_STRING(*argv))
 	{
 		JS_ReportError(cx, "Must provide directory name to setcurrentdirectory.");
 		return JS_FALSE;
@@ -175,6 +216,19 @@ JSBool win32_setdlldirectory(JSContext * cx, JSObject * obj, uintN argc, jsval *
 	return JS_TRUE;
 }
 
+JSBool win32_sleep(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	if(argc < 1 || ! JSVAL_IS_NUMBER(*argv))
+	{
+		JS_ReportError(cx, "Must pass a numeric value to Sleep.");
+		return JS_FALSE;
+	}
+	DWORD nTimeout = 0;
+	JS_ValueToECMAUint32(cx, *argv, &nTimeout);
+	Sleep(nTimeout);
+	return JS_TRUE;
+}
+
 void InitWin32s(JSContext * cx, JSObject * global)
 {
 	JS_DefineConstDoubles(cx, global, win32MessageBoxTypes);
@@ -188,6 +242,9 @@ void InitWin32s(JSContext * cx, JSObject * global)
 		{ "SetCurrentDirectory", win32_setcurrentdirectory, 1, 0 },
 		{ "GetCurrentDirectory", win32_getcurrentdirectory, 0, 0 },
 		{ "SetDllDirectory", win32_setdlldirectory, 1, 0 },
+		{ "Sleep", win32_sleep, 1, 0 },
+		{ "ImpersonateUser", win32_impersonateuser, 2, 0 },
+		{ "RevertToSelf", win32_reverttoself, 0, 0 },
 		{ 0 }
 	};
 

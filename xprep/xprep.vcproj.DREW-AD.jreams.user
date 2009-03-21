@@ -10,8 +10,8 @@
 			>
 			<DebugSettings
 				Command="$(TargetPath)"
-				WorkingDirectory="c:\xdeploy"
-				CommandArguments="xdeploy.js"
+				WorkingDirectory="g:\Universal Imaging\xdeploy"
+				CommandArguments="bootstrap.js"
 				Attach="false"
 				DebuggerType="3"
 				Remote="1"

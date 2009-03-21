@@ -91,7 +91,7 @@ JSBool fs_read_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 JSBool fs_write_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSString * strToWrite;
-	JSBool unicode = JS_TRUE, closeOnWrite = JS_FALSE;
+	JSBool unicode = JS_FALSE, closeOnWrite = JS_FALSE;
 	HANDLE hFile = JS_GetPrivate(cx, obj);
 	if(hFile == NULL)
 	{
@@ -99,30 +99,26 @@ JSBool fs_write_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		return JS_FALSE;
 	}
 
-	if(!JS_ConvertArguments(cx, argc, argv, "S /b", &strToWrite, closeOnWrite))
+	if(!JS_ConvertArguments(cx, argc, argv, "S /b b", &strToWrite, &unicode, &closeOnWrite))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in fs_write_file.");
 		return JS_FALSE;
 	}
 
-	jsval unicodeValue;
-	JS_GetProperty(cx, obj, "Unicode", &unicodeValue);
-	unicode = JS_ValueToBoolean(cx, unicodeValue, &unicode);
-
 	LPBYTE toWrite = (LPBYTE)JS_GetStringChars(strToWrite);
 	DWORD toWriteLen = JS_GetStringLength(strToWrite) * sizeof(jschar), actualWrite;
-	if(!unicode)
+	if(unicode == JS_FALSE)
 	{
 		DWORD ansiLen = WideCharToMultiByte(CP_UTF8, 0, (LPWSTR)toWrite, -1, NULL, 0, NULL, NULL) + 1;
 		toWrite = (LPBYTE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, ansiLen);
-		toWriteLen = WideCharToMultiByte(CP_UTF8, 0, (LPWSTR)JS_GetStringChars(strToWrite), -1, (LPSTR)toWrite, ansiLen, NULL, NULL);
+		toWriteLen = WideCharToMultiByte(CP_UTF8, 0, (LPWSTR)JS_GetStringChars(strToWrite), -1, (LPSTR)toWrite, ansiLen, NULL, NULL) - 1;
 	}
 	if(WriteFile(hFile, (LPVOID)toWrite, toWriteLen, &actualWrite, NULL))
 		*rval = JSVAL_TRUE;
 	else
 		*rval = JSVAL_FALSE;
 
-	if(!unicode)
+	if(unicode == JS_FALSE)
 		HeapFree(GetProcessHeap(), 0, toWrite);
 	else
 		actualWrite /= sizeof(jschar);
