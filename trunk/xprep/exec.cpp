@@ -195,7 +195,7 @@ JSBool njord_control_service(JSContext * cx, JSObject * obj, uintN argc, jsval *
 		return JS_TRUE;
 	}
 
-	SC_HANDLE scHandle = OpenService(scDBHandle, (LPWSTR)JS_GetStringChars(serviceName), GENERIC_EXECUTE);
+	SC_HANDLE scHandle = OpenService(scDBHandle, (LPWSTR)JS_GetStringChars(serviceName), GENERIC_EXECUTE | SERVICE_QUERY_STATUS);
 	if(scHandle == NULL)
 	{
 		*rval = JSVAL_FALSE;
@@ -208,7 +208,64 @@ JSBool njord_control_service(JSContext * cx, JSObject * obj, uintN argc, jsval *
 		status = (jsval)StartService(scHandle, 0, NULL);
 	else
 		status = (jsval)ControlService(scHandle, control, &outStatus);
-	*rval = status == TRUE ? JSVAL_TRUE : JSVAL_FALSE;
+	if(!status)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+
+	SERVICE_STATUS curStatus, prevStatus;
+	memset(&prevStatus, 0, sizeof(SERVICE_STATUS));
+	BOOL finished = FALSE, slept = FALSE;
+	DWORD totalSleep = 0;
+	while(!finished)
+	{
+		if(!QueryServiceStatus(scHandle, &curStatus))
+		{
+			*rval = JSVAL_FALSE;
+			finished = TRUE;
+		}
+	
+		if((curStatus.dwCheckPoint <= prevStatus.dwCheckPoint || curStatus.dwCurrentState == prevStatus.dwCurrentState) && slept == TRUE)
+		{
+			finished = TRUE;
+			*rval = JSVAL_FALSE;
+		}
+
+		switch(control)
+		{
+		case SERVICE_CONTROL_CONTINUE:
+		case 0:
+			if(curStatus.dwCurrentState == SERVICE_RUNNING) finished = TRUE;
+			break;
+		case SERVICE_CONTROL_PAUSE:
+			if(curStatus.dwCurrentState == SERVICE_PAUSED) finished = TRUE;
+			break;
+		case SERVICE_CONTROL_STOP:
+			if(curStatus.dwCurrentState == SERVICE_STOPPED) finished = TRUE;
+			break;
+		}
+
+		if(!finished)
+		{
+			if(curStatus.dwWaitHint > 5000)
+			{
+				Sleep(5000);
+				totalSleep += 5000;
+				if(totalSleep >= curStatus.dwWaitHint)
+					slept = TRUE;
+				else
+					slept = FALSE;
+			}
+			else
+			{
+				Sleep(curStatus.dwWaitHint);
+				slept = TRUE;
+			}
+			memcpy(&prevStatus, &curStatus, sizeof(SERVICE_STATUS));
+		}
+	}
+	*rval = JSVAL_TRUE;
 	CloseServiceHandle(scHandle);
 	CloseServiceHandle(scDBHandle);
 	return JS_TRUE;
