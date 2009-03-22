@@ -214,58 +214,58 @@ JSBool njord_control_service(JSContext * cx, JSObject * obj, uintN argc, jsval *
 		return JS_TRUE;
 	}
 
-	SERVICE_STATUS curStatus, prevStatus;
-	memset(&prevStatus, 0, sizeof(SERVICE_STATUS));
-	BOOL finished = FALSE, slept = FALSE;
-	DWORD totalSleep = 0;
-	while(!finished)
+	DWORD expectedState;
+	switch(control)
 	{
-		if(!QueryServiceStatus(scHandle, &curStatus))
-		{
-			*rval = JSVAL_FALSE;
-			finished = TRUE;
-		}
-	
-		if((curStatus.dwCheckPoint <= prevStatus.dwCheckPoint || curStatus.dwCurrentState == prevStatus.dwCurrentState) && slept == TRUE)
-		{
-			finished = TRUE;
-			*rval = JSVAL_FALSE;
-		}
+	case SERVICE_CONTROL_CONTINUE:
+	case 0:
+		expectedState = SERVICE_RUNNING;
+		break;
+	case SERVICE_CONTROL_PAUSE:
+		expectedState = SERVICE_PAUSED;
+		break;
+	case SERVICE_CONTROL_STOP:
+		expectedState = SERVICE_STOPPED;
+		break;
+	}
 
-		switch(control)
-		{
-		case SERVICE_CONTROL_CONTINUE:
-		case 0:
-			if(curStatus.dwCurrentState == SERVICE_RUNNING) finished = TRUE;
-			break;
-		case SERVICE_CONTROL_PAUSE:
-			if(curStatus.dwCurrentState == SERVICE_PAUSED) finished = TRUE;
-			break;
-		case SERVICE_CONTROL_STOP:
-			if(curStatus.dwCurrentState == SERVICE_STOPPED) finished = TRUE;
-			break;
-		}
+	SERVICE_STATUS curStatus;
+	QueryServiceStatus(scHandle, &curStatus);
+	DWORD oldCheckPoint, startTickCount = GetTickCount();
+	while(curStatus.dwCurrentState != expectedState)
+	{
+		oldCheckPoint = curStatus.dwCheckPoint;
+		DWORD waitTime = curStatus.dwWaitHint / 10;
+		if(waitTime < 1000)
+			waitTime = 1000;
+		else if(waitTime > 10000)
+			waitTime = 10000;
+		Sleep(waitTime);
 
-		if(!finished)
+		QueryServiceStatus(scHandle, &curStatus);
+		if(curStatus.dwCheckPoint > oldCheckPoint)
 		{
-			if(curStatus.dwWaitHint > 5000)
-			{
-				Sleep(5000);
-				totalSleep += 5000;
-				if(totalSleep >= curStatus.dwWaitHint)
-					slept = TRUE;
-				else
-					slept = FALSE;
-			}
-			else
-			{
-				Sleep(curStatus.dwWaitHint);
-				slept = TRUE;
-			}
-			memcpy(&prevStatus, &curStatus, sizeof(SERVICE_STATUS));
+			startTickCount = GetTickCount();
+			oldCheckPoint = curStatus.dwCheckPoint;
+		}
+		else
+		{
+			if(GetTickCount() - startTickCount > curStatus.dwWaitHint)
+				break;
 		}
 	}
-	*rval = JSVAL_TRUE;
+
+	QueryServiceStatus(scHandle, &curStatus);
+	if(curStatus.dwCurrentState == expectedState)
+		*rval = JSVAL_TRUE;
+	else
+	{
+		*rval = JSVAL_FALSE;
+		if(curStatus.dwWin32ExitCode == ERROR_SERVICE_SPECIFIC_ERROR)
+			SetLastError(curStatus.dwServiceSpecificExitCode);
+		else
+			SetLastError(curStatus.dwWin32ExitCode);
+	}
 	CloseServiceHandle(scHandle);
 	CloseServiceHandle(scDBHandle);
 	return JS_TRUE;
