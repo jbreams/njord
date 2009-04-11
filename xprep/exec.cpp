@@ -18,11 +18,10 @@ DWORD APIENTRY ExecPipeReader(LPVOID param)
 	pri->bufferToUse = (LPBYTE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 4096);
 	pri->bufferSize = 4096;
 	pri->used = 0;
-	BYTE left = 2;
-	while(left > 0)
+	BOOL running = TRUE;
+	DWORD toRead = 0;
+	while(running)
 	{
-		DWORD toRead = 0;
-		PeekNamedPipe(pri->pipeToRead, NULL,0, NULL, &toRead, NULL);
 		if(toRead > 0)
 		{
 			if(pri->used + toRead >= pri->bufferSize)
@@ -30,17 +29,16 @@ DWORD APIENTRY ExecPipeReader(LPVOID param)
 				pri->bufferSize += (toRead >1024 ? toRead + 256 : 1024);
 				pri->bufferToUse = (LPBYTE)HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, pri->bufferToUse, pri->bufferSize);
 			}
-			if(ReadFile(pri->pipeToRead, (LPVOID)pri->bufferToUse, toRead, &toRead, NULL))
+			if(ReadFile(pri->pipeToRead, (LPVOID)(pri->bufferToUse + pri->used), toRead, &toRead, NULL))
 				pri->used += toRead;
 		}
 		
-		if(WaitForSingleObject(pri->stopEvent, 0) == WAIT_OBJECT_0 && left > 1)
+		PeekNamedPipe(pri->pipeToRead, NULL, 0, NULL, &toRead, NULL);
+		if(WaitForSingleObject(pri->stopEvent, 100) == WAIT_OBJECT_0)
 		{
-			left--;
-			continue;
+			if(toRead == 0)
+				running = FALSE;
 		}
-		if(left == 1)
-			left--;
 	}
 	return 0;
 }
@@ -82,8 +80,14 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		si.hStdError = stdErrorWrite;
 		si.hStdOutput = stdOutWrite;
 		si.dwFlags |= STARTF_USESTDHANDLES;
-		threadHandles[0] = stdOutRead;
-		threadHandles[1] = stdErrorRead;
+
+		outReader = (struct PipeReaderInfo*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(struct PipeReaderInfo));
+		errReader = (struct PipeReaderInfo*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(struct PipeReaderInfo));
+
+		outReader->pipeToRead = stdOutRead;
+		errReader->pipeToRead = stdErrorRead;
+		threadHandles[0] = CreateThread(sa, 0, ExecPipeReader, outReader, 0, NULL);
+		threadHandles[1] = CreateThread(sa, 0, ExecPipeReader, errReader, 0, NULL);
 	}
 
 	if(jsHide == TRUE)
@@ -111,14 +115,8 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 
 	if(jsCapture == TRUE)
 	{
-		outReader = (struct PipeReaderInfo*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(struct PipeReaderInfo));
-		errReader = (struct PipeReaderInfo*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(struct PipeReaderInfo));
 		outReader->stopEvent = pi.hProcess;
 		errReader->stopEvent = pi.hProcess;
-		outReader->pipeToRead = stdOutRead;
-		errReader->pipeToRead = stdErrorRead;
-		threadHandles[0] = CreateThread(sa, 0, ExecPipeReader, outReader, 0, NULL);
-		threadHandles[1] = CreateThread(sa, 0, ExecPipeReader, errReader, 0, NULL);
 		threadHandles[2] = pi.hProcess;
 		WaitForMultipleObjects(2, threadHandles, TRUE, INFINITE);
 	}
@@ -166,9 +164,10 @@ functionEnd:
 		CloseHandle(stdOutWrite);
 		CloseHandle(stdErrorRead);
 		CloseHandle(stdErrorWrite);
-		CloseHandle(threadHandles[0]);
-		CloseHandle(threadHandles[1]);
 		HeapFree(GetProcessHeap(), 0, sa);
+	}
+	if(outReader != NULL)
+	{
 		HeapFree(GetProcessHeap(), 0, outReader->bufferToUse);
 		HeapFree(GetProcessHeap(), 0, errReader->bufferToUse);
 		HeapFree(GetProcessHeap(), 0, outReader);
@@ -181,8 +180,9 @@ JSBool njord_control_service(JSContext * cx, JSObject * obj, uintN argc, jsval *
 {
 	JSString * serviceName;
 	DWORD control = 0;
+	JSBool async = JS_FALSE;
 
-	if(!JS_ConvertArguments(cx, argc, argv, "S /u", &serviceName, &control))
+	if(!JS_ConvertArguments(cx, argc, argv, "S /u b", &serviceName, &control, &async))
 	{
 		JS_ReportError(cx, "Error parsing arguments in control_service");
 		return JS_FALSE;
@@ -202,18 +202,6 @@ JSBool njord_control_service(JSContext * cx, JSObject * obj, uintN argc, jsval *
 		return JS_TRUE;
 	}
 
-	SERVICE_STATUS outStatus;
-	BOOL status = FALSE;
-	if(control == 0)
-		status = (jsval)StartService(scHandle, 0, NULL);
-	else
-		status = (jsval)ControlService(scHandle, control, &outStatus);
-	if(!status)
-	{
-		*rval = JSVAL_FALSE;
-		return JS_TRUE;
-	}
-
 	DWORD expectedState;
 	switch(control)
 	{
@@ -228,9 +216,35 @@ JSBool njord_control_service(JSContext * cx, JSObject * obj, uintN argc, jsval *
 		expectedState = SERVICE_STOPPED;
 		break;
 	}
-
 	SERVICE_STATUS curStatus;
 	QueryServiceStatus(scHandle, &curStatus);
+	if(curStatus.dwCurrentState == expectedState)
+	{
+		*rval = JSVAL_TRUE;
+		CloseServiceHandle(scHandle);
+		CloseServiceHandle(scDBHandle);
+		return JS_TRUE;
+	}
+
+	BOOL status = FALSE;
+	if(control == 0)
+		status = (jsval)StartService(scHandle, 0, NULL);
+	else
+		status = (jsval)ControlService(scHandle, control, &curStatus);
+	if(!status)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+	else
+		*rval = JSVAL_TRUE;
+	if(async == JS_TRUE)
+	{
+		CloseServiceHandle(scHandle);
+		CloseServiceHandle(scDBHandle);
+		return JS_TRUE;
+	}
+
 	DWORD oldCheckPoint, startTickCount = GetTickCount();
 	while(curStatus.dwCurrentState != expectedState)
 	{
@@ -271,11 +285,63 @@ JSBool njord_control_service(JSContext * cx, JSObject * obj, uintN argc, jsval *
 	return JS_TRUE;
 }
 
+JSBool njord_query_service_status(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JSString * serviceName;
+	JSBool justState = JS_TRUE;
+
+	if(!JS_ConvertArguments(cx, argc, argv, "S /b", &serviceName, &justState))
+	{
+		JS_ReportError(cx, "Error parsing arguments in control_service");
+		return JS_FALSE;
+	}
+
+	SC_HANDLE scDBHandle = OpenSCManager(NULL, NULL, GENERIC_READ | GENERIC_EXECUTE);
+	if(scDBHandle == NULL)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+
+	SC_HANDLE scHandle = OpenService(scDBHandle, (LPWSTR)JS_GetStringChars(serviceName), GENERIC_EXECUTE | SERVICE_QUERY_STATUS);
+	if(scHandle == NULL)
+	{
+		CloseServiceHandle(scDBHandle);
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+
+	SERVICE_STATUS_PROCESS curStatus;
+	DWORD outSize;
+	BOOL queryOK = QueryServiceStatusEx(scHandle, SC_STATUS_PROCESS_INFO, (LPBYTE)&curStatus, sizeof(SERVICE_STATUS_PROCESS), &outSize);
+	CloseServiceHandle(scHandle);
+	CloseServiceHandle(scDBHandle);
+	if(!queryOK)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+
+	if(justState == TRUE)
+	{
+		JS_NewNumberValue(cx, curStatus.dwCurrentState, rval);
+		return JS_TRUE;
+	}
+	return JS_TRUE;
+}
+
 struct JSConstDoubleSpec serviceConsts[] = {
 	{ 0, "SERVICE_CONTROL_START", 0, 0 },
 	{ SERVICE_CONTROL_CONTINUE, "SERVICE_CONTROL_CONTINUE", 0, 0 },
 	{ SERVICE_CONTROL_PAUSE, "SERVICE_CONTROL_PAUSE", 0, 0 },
 	{ SERVICE_CONTROL_STOP, "SERVICE_CONTROL_STOP", 0, 0 },
+	{ SERVICE_CONTINUE_PENDING, "SERVICE_CONTINUE_PENDING", 0, 0 },
+	{ SERVICE_PAUSE_PENDING, "SERVICE_PAUSE_PENDING", 0, 0 },
+	{ SERVICE_PAUSED, "SERVICE_PAUSED", 0, 0 },
+	{ SERVICE_RUNNING, "SERVICE_RUNNING", 0, 0 },
+	{ SERVICE_START_PENDING, "SERVICE_START_PENDING", 0, 0 },
+	{ SERVICE_STOP_PENDING, "SERVICE_STOP_PENDING", 0, 0 },
+	{ SERVICE_STOPPED, "SERVICE_STOPPED", 0, 0 },
 	{ 0 },
 };
 
@@ -286,6 +352,7 @@ JSBool InitExec(JSContext * cx, JSObject * global)
 	JSFunctionSpec execMethods[] = {
 		{"Exec", xprep_js_exec, 1, 0, 0},
 		{"ControlService", njord_control_service, 1, 0, 0 },
+		{"QueryServiceStatus", njord_query_service_status, 1, 0, 0 },
 		{0, 0, 0, 0, 0 }
 	};
 

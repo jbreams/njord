@@ -376,6 +376,17 @@ JSBool reg_enum_keys(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	return JS_TRUE;
 }
 
+JSBool reg_close_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	HKEY myKey = (HKEY)JS_GetPrivate(cx, obj);
+	if(myKey != NULL)
+	{
+		RegCloseKey(myKey);
+		JS_SetPrivate(cx, obj, NULL);
+	}
+	return JS_TRUE;
+}
+
 BOOL RegDelKeyRecurse(HKEY parent, LPTSTR child)
 {
 	if(RegDeleteKey(parent, child) == ERROR_SUCCESS)
@@ -413,10 +424,25 @@ functionEnd:
 JSBool reg_delete_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSString * subKeyName;
-	HKEY hive;
+	HKEY hive = NULL;
 
-	if(!JS_ConvertArguments(cx, argc, argv, "u S", &hive, &subKeyName))
+	if(!JS_ConvertArguments(cx, argc, argv, "* S", &subKeyName))
 		return JS_FALSE;
+	
+	if(JSVAL_IS_NUMBER(argv[0]))
+		JS_ValueToECMAUint32(cx, argv[0], (uint32*)&hive);
+	else if(JSVAL_IS_OBJECT(argv[0]))
+	{
+		JSObject * passedObj;
+		JS_ValueToObject(cx, argv[0], &passedObj);
+		if(JS_InstanceOf(cx, passedObj, &regKeyClass, NULL))
+			hive = (HKEY)JS_GetPrivate(cx, passedObj);
+	}
+	if(hive == NULL)
+	{
+		JS_ReportError(cx, "Passed invalid HKEY to RegDeleteKey");
+		return JS_FALSE;
+	}
 
 	if(RegDelKeyRecurse(hive, (LPWSTR)JS_GetStringChars(subKeyName)) == FALSE)
 		*rval = JSVAL_FALSE;
@@ -425,6 +451,25 @@ JSBool reg_delete_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	return JS_TRUE;
 }
 
+JSBool reg_delete_subkey(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JSString * subKeyName;
+	HKEY curKey = (HKEY)JS_GetPrivate(cx, obj);
+	if(curKey == NULL)
+	{
+		JS_ReportError(cx, "Tried to use null handle in reg_delete_subkey");
+		return JS_FALSE;
+	}
+
+	if(!JS_ConvertArguments(cx, argc, argv, "S", &subKeyName))
+	{
+		JS_ReportError(cx, "Error during argument parsing in reg_delete_subkey");
+		return JS_FALSE;
+	}
+
+	*rval = RegDelKeyRecurse(curKey, (LPWSTR)JS_GetStringChars(subKeyName)) == TRUE ? JSVAL_TRUE : JSVAL_FALSE;
+	return JS_TRUE;
+}
 
 JSBool reg_load_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
@@ -498,6 +543,8 @@ BOOL InitRegistry(JSContext * cx, JSObject * global)
 		{ "EnumValues", reg_enum_values, 0, 0, 0 },
 		{ "EnumKeys", reg_enum_keys, 0, 0, 0 },
 		{ "Flush", reg_flush_key, 0, 0, 0 },
+		{ "DeleteSubKey", reg_delete_subkey, 1, 0, 0 },
+		{ "Close", reg_close_key, 0, 0, 0 },
 		{ 0 },
 	};
 

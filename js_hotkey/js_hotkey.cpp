@@ -149,7 +149,10 @@ JSBool JSRegisterHotKey(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 	HANDLE lock = OpenMutex(SYNCHRONIZE, FALSE, TEXT("hotkey_table_mutex"));
 	registrationsChanged = TRUE;
 	if(hotKeyHead != NULL)
+	{
 		newReg->next = hotKeyHead;
+		hotKeyHead = newReg;
+	}
 	else
 	{
 		hotKeyHead = newReg;

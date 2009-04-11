@@ -10,8 +10,8 @@
 			>
 			<DebugSettings
 				Command="$(TargetPath)"
-				WorkingDirectory=""
-				CommandArguments="test2.js"
+				WorkingDirectory="\\koozebane-w\cnsstor\driver store\drivers\wifi\profiles\"
+				CommandArguments="\\koozebane-w\cnsstor\driver store\drivers\wifi\profiles\loadprofiles.js"
 				Attach="false"
 				DebuggerType="3"
 				Remote="1"
@@ -38,8 +38,8 @@
 			>
 			<DebugSettings
 				Command="$(TargetPath)"
-				WorkingDirectory="c:\xdeploy"
-				CommandArguments="regtest.js"
+				WorkingDirectory="\\koozebane-w\cnsstor\driver store\drivers\wifi\profiles"
+				CommandArguments="\\koozebane-w\cnsstor\driver store\drivers\wifi\profiles\loadprofiles.js"
 				Attach="false"
 				DebuggerType="3"
 				Remote="1"
