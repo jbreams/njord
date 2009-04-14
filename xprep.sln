@@ -11,6 +11,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_gecko", "js_gecko\js_gec
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_hotkey", "js_hotkey\js_hotkey.vcproj", "{A524BD44-8FC4-4A6F-9939-9C237290B8D1}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_gecko2", "js_gecko2\js_gecko2.vcproj", "{A10013D7-B505-4EB5-A524-1841BBBA97EB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -37,6 +39,10 @@ Global
 		{A524BD44-8FC4-4A6F-9939-9C237290B8D1}.Debug|Win32.Build.0 = Debug|Win32
 		{A524BD44-8FC4-4A6F-9939-9C237290B8D1}.Release|Win32.ActiveCfg = Release|Win32
 		{A524BD44-8FC4-4A6F-9939-9C237290B8D1}.Release|Win32.Build.0 = Release|Win32
+		{A10013D7-B505-4EB5-A524-1841BBBA97EB}.Debug|Win32.ActiveCfg = Debug|Win32
+		{A10013D7-B505-4EB5-A524-1841BBBA97EB}.Debug|Win32.Build.0 = Debug|Win32
+		{A10013D7-B505-4EB5-A524-1841BBBA97EB}.Release|Win32.ActiveCfg = Release|Win32
+		{A10013D7-B505-4EB5-A524-1841BBBA97EB}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
