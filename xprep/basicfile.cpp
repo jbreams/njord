@@ -6,11 +6,13 @@ JSBool fs_copy_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	JSString * sourceStr, * destinationStr;
 	JSBool overwrite = JS_TRUE;
 
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S S /b", &sourceStr, &destinationStr, &overwrite))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in fs_copy_file.");
 		return JS_FALSE;
 	}
+	JS_EndRequest(cx);
 
 	jschar * source = JS_GetStringChars(sourceStr);
 	jschar * destination = JS_GetStringChars(destinationStr);
@@ -23,12 +25,13 @@ JSBool fs_move_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	JSString * sourceStr, * destinationStr;
 	DWORD flags;
 
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S S /u", &sourceStr, &destinationStr, &flags))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in fs_copy_file.");
 		return JS_FALSE;
 	}
-
+	JS_EndRequest(cx);
 	jschar * source = JS_GetStringChars(sourceStr);
 	jschar * destination = JS_GetStringChars(destinationStr);
 
@@ -37,7 +40,9 @@ JSBool fs_move_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 }
 JSBool fs_delete_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	JSString * sourceStr = JS_ValueToString(cx, argv[0]);
+	JS_EndRequest(cx);
 	jschar * source = JS_GetStringChars(sourceStr);
 
 	*rval = DeleteFile((LPWSTR)source) ? JSVAL_TRUE : JSVAL_FALSE;
@@ -46,6 +51,7 @@ JSBool fs_delete_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 JSBool fs_read_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	DWORD nBytesToRead = 0, actualRead = 0;
+	JS_BeginRequest(cx);
 	HANDLE hFile = JS_GetPrivate(cx, obj);
 	if(hFile == NULL)
 	{
@@ -55,6 +61,7 @@ JSBool fs_read_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 
 	if(argc == 1)
 		JS_ValueToECMAUint32(cx, argv[0], &nBytesToRead);
+	jsrefcount rCount = JS_SuspendRequest(cx);
 
 	if(nBytesToRead == 0)
 	{
@@ -69,9 +76,12 @@ JSBool fs_read_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	{
 		JS_free(cx, localBuffer);
 		*rval = JSVAL_FALSE;
+		JS_ResumeRequest(cx, rCount);
+		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 	
+	JS_ResumeRequest(cx, rCount);
 	jsval lastReadVal;
 	JSString * retString = NULL;
 	if(IsTextUnicode(localBuffer, actualRead, NULL))
@@ -86,12 +96,14 @@ JSBool fs_read_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	}
 	JS_SetProperty(cx, obj, "lastReadBytes", &lastReadVal);
 	*rval = STRING_TO_JSVAL(retString);
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 JSBool fs_write_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSString * strToWrite;
 	JSBool unicode = JS_FALSE, closeOnWrite = JS_FALSE;
+	JS_BeginRequest(cx);
 	HANDLE hFile = JS_GetPrivate(cx, obj);
 	if(hFile == NULL)
 	{
@@ -105,6 +117,7 @@ JSBool fs_write_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		return JS_FALSE;
 	}
 
+	jsrefcount rCount = JS_SuspendRequest(cx);
 	LPBYTE toWrite = (LPBYTE)JS_GetStringChars(strToWrite);
 	DWORD toWriteLen = JS_GetStringLength(strToWrite) * sizeof(jschar), actualWrite;
 	if(unicode == JS_FALSE)
@@ -122,7 +135,8 @@ JSBool fs_write_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		HeapFree(GetProcessHeap(), 0, toWrite);
 	else
 		actualWrite /= sizeof(jschar);
-	
+
+	JS_ResumeRequest(cx, rCount);	
 	jsval lastWriteVal;
 	JS_NewNumberValue(cx, actualWrite, &lastWriteVal);
 	JS_SetProperty(cx, obj, "lastWriteBytes", &lastWriteVal);
@@ -132,6 +146,7 @@ JSBool fs_write_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		CloseHandle(hFile);
 		JS_SetPrivate(cx, obj, NULL);
 	}
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 JSBool fs_close_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
@@ -173,8 +188,9 @@ JSBool fs_size_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	}
 
 	GetFileSizeEx(hFile, &fileSize);
-
+	JS_BeginRequest(cx);
 	JS_NewNumberValue(cx, (jsdouble)fileSize.QuadPart, rval);
+	JS_EndRequest(cx);
 	return JS_TRUE;	
 }
 JSBool fs_seek_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
@@ -186,7 +202,7 @@ JSBool fs_seek_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 		return JS_FALSE;
 	}
 	DWORD flags = FILE_CURRENT, offset;
-
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "u /u", &offset, &flags))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in fs_seek_file.");
@@ -203,6 +219,7 @@ JSBool fs_seek_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	default:
 		JS_NewNumberValue(cx, retCode, rval);
 	}
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -221,7 +238,7 @@ JSBool fs_create_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		JS_SetPrivate(cx, obj, NULL);
 		return JS_TRUE;
 	}
-
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S /u u u u", &fileNameStr, &creationDisposition, &desiredAccess, &flags, &shareMode))
 	{
 		JS_ReportError(cx, "Error parsing arguments in fs_create_file");
@@ -239,6 +256,7 @@ JSBool fs_create_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		JS_SetPrivate(cx, obj, (void*)hFile);
 		*rval = JSVAL_TRUE;
 	}
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -259,13 +277,46 @@ JSObject * fsProto = NULL;
 
 JSBool fs_create_file_static(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	JSObject * newObject = JS_NewObject(cx, &fsClass, fsProto, obj);
 	if(newObject == NULL)
 	{
 		JS_ReportError(cx, "Error creating new File object.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
+	JS_EndRequest(cx);
 	return fs_create_file(cx, newObject, argc, argv, rval);
+}
+
+JSBool fs_create_directory(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	LPWSTR path;
+	JS_BeginRequest(cx);
+	if(!JS_ConvertArguments(cx, argc, argv, "W", &path))
+	{
+		JS_ReportError(cx, "Error parsing arguments in fs_create_directory");
+		JS_EndRequest(cx);
+		return JS_FALSE;
+	}
+	JS_EndRequest(cx);
+	*rval = CreateDirectory(path, NULL) ? JSVAL_TRUE : JSVAL_FALSE;
+	return JS_TRUE;
+}
+
+JSBool fs_remove_directory(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	LPWSTR path;
+	JS_BeginRequest(cx);
+	if(!JS_ConvertArguments(cx, argc, argv, "W", &path))
+	{
+		JS_ReportError(cx, "Error parsing arguments in fs_remove_directory");
+		JS_EndRequest(cx);
+		return JS_FALSE;
+	}
+	JS_EndRequest(cx);
+	*rval = RemoveDirectory(path) ? JSVAL_TRUE : JSVAL_FALSE;
+	return JS_TRUE;
 }
 
 JSBool InitFile(JSContext * cx, JSObject * global)
@@ -275,6 +326,8 @@ JSBool InitFile(JSContext * cx, JSObject * global)
 		{ "MoveFile", fs_move_file, 2, 0, 0 },
 		{ "DeleteFile", fs_delete_file, 1, 0, 0 },
 		{ "CreateFile", fs_create_file_static, 1, 0, 0 },
+		{ "CreateDirectory", fs_create_directory, 1, 0, 0 },
+		{ "RemoveDirectory", fs_remove_directory, 1, 0, 0 },
 		{ 0 },
 	};
 

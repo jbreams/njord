@@ -20,5 +20,6 @@
 
 #define XP_WIN
 #define CURL_STATICLIB
+#define JS_THREADSAFE
 
 // TODO: reference additional headers your program requires here

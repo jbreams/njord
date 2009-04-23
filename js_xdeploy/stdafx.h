@@ -9,6 +9,7 @@
 
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #define XP_WIN
+#define JS_THREADSAFE
 // Windows Header Files:
 #include <windows.h>
 #include "jsapi.h"

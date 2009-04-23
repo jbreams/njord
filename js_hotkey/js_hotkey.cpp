@@ -88,11 +88,13 @@ DWORD HotKeyThread(LPVOID param)
 			{
 				jsval vals[2];
 				vals[0] = JSVAL_VOID; vals[1] = JSVAL_VOID;
+				JS_BeginRequest(useCx);
 				JS_NewNumberValue(useCx, flags, &vals[0]);
 				JS_NewNumberValue(useCx, vk, &vals[1]);
 				
 				jsval dontneedit;
 				JS_CallFunctionName(useCx, useGlobal, curReg->functionName, 2, vals, &dontneedit);
+				JS_EndRequest(useCx);
 			}
 			curReg = curReg->next;
 		}
@@ -121,11 +123,14 @@ JSBool JSRegisterHotKey(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 	char *functionName, * keyCode;
 	UINT flags;
 
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "s u s", &keyCode, &flags, &functionName))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in RegisterHotKeys");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
+	JS_EndRequest(cx);
 
 	if(strlen(keyCode) < 1 || flags == 0)
 	{
@@ -173,7 +178,9 @@ JSBool JSRegisterHotKey(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 			int nameMatch = strcmp(newReg->functionName, functionName);
 			if(newReg->flags == flags && newReg->vk == vkCode && nameMatch  == 0 && newReg->state == STATE_REGISTERED)
 			{
+				JS_BeginRequest(cx);
 				JS_NewNumberValue(cx, newReg->id, rval);
+				JS_EndRequest(cx);
 				break;
 			}
 			newReg = newReg->next;
@@ -187,11 +194,14 @@ JSBool JSRegisterHotKey(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 JSBool JSUnregisterHotKey(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	UINT id;
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "c", &id))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in UnregisterHotKey");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
+	JS_EndRequest(cx);
 
 	HANDLE lock = OpenMutex(SYNCHRONIZE, FALSE, TEXT("hotkey_table_mutex"));
 	struct HotKeyRegistration * curReg = hotKeyHead;
@@ -233,8 +243,6 @@ extern "C" {
 #endif
 BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 {
-	JS_DefineConstDoubles(cx, global, hotKeyConsts);
-	
 	JSFunctionSpec hotKeyFunctions [] = {
 		{ "RegisterHotKey", JSRegisterHotKey, 3, 0, 0 },
 		{ "UnregisterHotKey", JSUnregisterHotKey, 1, 0, 0 },
@@ -243,7 +251,10 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 	};
 
 	CreateMutex(NULL, FALSE, TEXT("hotkey_table_mutex"));
+	JS_BeginRequest(cx);
+	JS_DefineConstDoubles(cx, global, hotKeyConsts);
 	JS_DefineFunctions(cx, global, hotKeyFunctions);
+	JS_EndRequest(cx);
 	return TRUE;
 }
 
