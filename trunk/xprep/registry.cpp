@@ -48,13 +48,13 @@ JSBool reg_create_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	JSString * subKeyName = NULL;
 	HKEY hive = HKEY_LOCAL_MACHINE, result;
 	REGSAM desiredAccess = KEY_READ | KEY_WRITE;
-
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "u S /u", &hive, &subKeyName, &desiredAccess))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in reg_create_key");
 		return JS_FALSE;
 	}
-
+	JS_YieldRequest(cx);
 	LONG resultCode = RegCreateKeyExW(hive, (LPWSTR)JS_GetStringChars(subKeyName), 0, NULL, 0, desiredAccess, NULL, &result, NULL);
 	if(resultCode != ERROR_SUCCESS)
 	{
@@ -77,6 +77,7 @@ JSBool reg_create_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		JS_SetPrivate(cx, newRegKey, result);
 		*rval = OBJECT_TO_JSVAL(newRegKey);
 	}
+	JS_EndRequest(cx);
 	return JS_TRUE;	
 }
 
@@ -85,13 +86,14 @@ JSBool reg_open_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	JSString * subKeyName = NULL;
 	HKEY hive = HKEY_LOCAL_MACHINE, result;
 	REGSAM desiredAccess = KEY_READ | KEY_WRITE;
-
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "u S /u", &hive, &subKeyName, &desiredAccess))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in reg_create_key");
 		return JS_FALSE;
 	}
 
+	JS_YieldRequest(cx);
 	LONG resultCode = RegOpenKeyEx(hive, (LPWSTR)JS_GetStringChars(subKeyName), 0, desiredAccess, &result);
 	if(resultCode != ERROR_SUCCESS)
 	{
@@ -114,21 +116,25 @@ JSBool reg_open_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 		JS_SetPrivate(cx, newRegKey, result);
 		*rval = OBJECT_TO_JSVAL(newRegKey);
 	}
+	JS_EndRequest(cx);
 	return JS_TRUE;	
 }
 
 JSBool reg_set_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	HKEY thisKey = (HKEY)JS_GetPrivate(cx, obj);
 	if(thisKey == NULL)
 	{
 		JS_ReportError(cx, "reg_set_value called on an uninitialized RegKey. Call RegOpenKey or RegCreateKey first!");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
 	if(argc < 2)
 	{
 		JS_ReportError(cx, "Not enough arguments for reg_set_value, must provide value name and the value itself.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
@@ -144,6 +150,7 @@ JSBool reg_set_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	if(!JS_ConvertArguments(cx, argc, argv, "S * /u", &valueName, &valueType))
 	{
 		JS_ReportError(cx, "unable to parse arguments in reg_set_value.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
@@ -194,6 +201,7 @@ JSBool reg_set_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		}
 		break;
 	}
+	JS_EndRequest(cx);
 
 	LONG result = RegSetValueExW(thisKey, (LPWSTR)JS_GetStringChars(valueName), 0, valueType, (BYTE*)data, dataSize);
 	HeapFree(GetProcessHeap(), 0, data);
@@ -209,6 +217,7 @@ JSBool reg_set_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 
 JSBool reg_delete_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	HKEY thisKey = (HKEY)JS_GetPrivate(cx, obj);
 	if(thisKey == NULL)
 	{
@@ -220,7 +229,9 @@ JSBool reg_delete_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 		JS_ReportError(cx, "Insufficient arguments, must provide a value name.");
 		return JS_FALSE;
 	}
+
 	JSString * valueName = JS_ValueToString(cx, argv[0]);
+	JS_EndRequest(cx);
 	LSTATUS result = RegDeleteValue(thisKey, (LPWSTR)JS_GetStringChars(valueName));
 	if(result != ERROR_SUCCESS)
 	{
@@ -234,6 +245,7 @@ JSBool reg_delete_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 
 JSBool reg_query_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	HKEY thisKey = (HKEY)JS_GetPrivate(cx, obj);
 	if(thisKey == NULL)
 	{
@@ -245,6 +257,7 @@ JSBool reg_query_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 		JS_ReportError(cx, "Insufficient arguments, must provide a value name.");
 		return JS_FALSE;
 	}
+	JS_BeginRequest(cx);
 	JSString * valueNameStr = JS_ValueToString(cx, argv[0]);
 	
 	DWORD valueType, valueSize;
@@ -306,6 +319,7 @@ JSBool reg_query_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 			*rval = STRING_TO_JSVAL(newStr);
 		}
 	}
+	JS_EndRequest(cx);
 	HeapFree(GetProcessHeap(), 0, valueData);
 	return JS_TRUE;
 }
@@ -320,6 +334,7 @@ JSBool reg_enum_values(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 		return JS_FALSE;
 	}
 
+	JS_BeginRequest(cx);
 	JSObject * arrayObj = JS_NewArrayObject(cx, 0, NULL);
 	*rval = OBJECT_TO_JSVAL(arrayObj);
 	RegQueryInfoKey(curKey, NULL, NULL, NULL, NULL, NULL, NULL, &nValues, &bufLen, NULL, NULL, NULL);
@@ -339,6 +354,7 @@ JSBool reg_enum_values(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 		jsval copiedNameVal = STRING_TO_JSVAL(copiedName);
 		JS_SetElement(cx, arrayObj, i, &copiedNameVal);
 	}
+	JS_EndRequest(cx);
 	HeapFree(GetProcessHeap(), 0, valueName);
 	return JS_TRUE;
 }
@@ -353,6 +369,7 @@ JSBool reg_enum_keys(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		return JS_FALSE;
 	}
 
+	JS_BeginRequest(cx);
 	JSObject * arrayObj = JS_NewArrayObject(cx, 0, NULL);
 	*rval = OBJECT_TO_JSVAL(arrayObj);
 	RegQueryInfoKey(curKey, NULL, NULL, 0, &nSubKeys, &bufLen, NULL, NULL, NULL, NULL, NULL, NULL);
@@ -372,6 +389,7 @@ JSBool reg_enum_keys(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		jsval copiedNameVal = STRING_TO_JSVAL(copiedName);
 		JS_SetElement(cx, arrayObj, i, &copiedNameVal);
 	}
+	JS_EndRequest(cx);
 	HeapFree(GetProcessHeap(), 0, keyName);
 	return JS_TRUE;
 }
@@ -425,7 +443,8 @@ JSBool reg_delete_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 {
 	JSString * subKeyName;
 	HKEY hive = NULL;
-
+	
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "* S", &subKeyName))
 		return JS_FALSE;
 	
@@ -443,6 +462,7 @@ JSBool reg_delete_key(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		JS_ReportError(cx, "Passed invalid HKEY to RegDeleteKey");
 		return JS_FALSE;
 	}
+	JS_EndRequest(cx);
 
 	if(RegDelKeyRecurse(hive, (LPWSTR)JS_GetStringChars(subKeyName)) == FALSE)
 		*rval = JSVAL_FALSE;
@@ -461,11 +481,13 @@ JSBool reg_delete_subkey(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 		return JS_FALSE;
 	}
 
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S", &subKeyName))
 	{
 		JS_ReportError(cx, "Error during argument parsing in reg_delete_subkey");
 		return JS_FALSE;
 	}
+	JS_EndRequest(cx);
 
 	*rval = RegDelKeyRecurse(curKey, (LPWSTR)JS_GetStringChars(subKeyName)) == TRUE ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
@@ -475,8 +497,9 @@ JSBool reg_load_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 {
 	HKEY hive;
 	JSString * subKeyNameStr = NULL, * fileName;
-
 	LPWSTR subKeyName = NULL;
+
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "u S /S", &hive, &fileName, &subKeyNameStr))
 	{
 		JS_ReportError(cx, "Error parsing arguments in reg_load_hive");
@@ -485,6 +508,7 @@ JSBool reg_load_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 
 	if(subKeyNameStr != NULL)
 		subKeyName = (LPWSTR)JS_GetStringChars(subKeyNameStr); 
+	JS_EndRequest(cx);
 
 	if(RegLoadKey(hive, subKeyName, (LPWSTR)JS_GetStringChars(fileName)))
 		*rval = JSVAL_TRUE;
@@ -497,14 +521,15 @@ JSBool reg_unload_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 {
 	HKEY hive;
 	JSString * subKeyNameStr;
-
 	LPWSTR subKeyName = NULL;
+
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "u S", &hive, &subKeyNameStr))
 	{
 		JS_ReportError(cx, "Error parsing arguments in reg_load_hive");
 		return JS_FALSE;
 	}
-
+	JS_EndRequest(cx);
 	if(RegUnLoadKey(hive, (LPWSTR)JS_GetStringChars(subKeyNameStr)))
 		*rval = JSVAL_TRUE;
 	else

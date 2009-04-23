@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="js_gecko2"
-	ProjectGUID="{A10013D7-B505-4EB5-A524-1841BBBA97EB}"
-	RootNamespace="js_gecko2"
+	Name="js_wmi"
+	ProjectGUID="{60BCE6CC-E6FC-43DB-B850-1AA0897D8EF2}"
+	RootNamespace="js_wmi"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="196613"
 	>
@@ -41,8 +41,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;..\xulrunner-sdk\sdk\include&quot;;..\spidermonkey\include;&quot;..\xulrunner-sdk\include\docshell&quot;;&quot;..\xulrunner-sdk\include\xulapp&quot;;&quot;..\xulrunner-sdk\include\necko&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\widget&quot;;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\pref&quot;;&quot;..\xulrunner-sdk\include\gfx&quot;;&quot;..\xulrunner-sdk\include\embed_base&quot;"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS"
+				AdditionalIncludeDirectories="..\spidermonkey\include"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JS_WMI_EXPORTS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
@@ -61,6 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="..\spidermonkey\$(ConfigurationName)\js32.lib"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -115,8 +116,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="&quot;..\xulrunner-sdk\sdk\include&quot;;..\spidermonkey\include"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS"
+				AdditionalIncludeDirectories="..\spidermonkey\include"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;JS_WMI_EXPORTS"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="2"
@@ -134,6 +135,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="..\spidermonkey\$(ConfigurationName)\js32.lib"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -173,10 +175,6 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\contentlistener.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\dllmain.cpp"
 				>
 				<FileConfiguration
@@ -199,11 +197,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\domeventlistener.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\frontend.cpp"
+				RelativePath=".\js_wmi.cpp"
 				>
 			</File>
 			<File
@@ -226,10 +220,6 @@
 					/>
 				</FileConfiguration>
 			</File>
-			<File
-				RelativePath=".\webbrowserchrome.cpp"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -237,15 +227,7 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath=".\contentlistener.h"
-				>
-			</File>
-			<File
-				RelativePath=".\domeventlistener.h"
-				>
-			</File>
-			<File
-				RelativePath=".\js_gecko2.h"
+				RelativePath=".\js_wmi.h"
 				>
 			</File>
 			<File
@@ -254,10 +236,6 @@
 			</File>
 			<File
 				RelativePath=".\targetver.h"
-				>
-			</File>
-			<File
-				RelativePath=".\webbrowserchrome.h"
 				>
 			</File>
 		</Filter>

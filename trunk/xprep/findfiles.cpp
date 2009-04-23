@@ -23,11 +23,14 @@ JSBool find_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval
 	HANDLE findHandle = INVALID_HANDLE_VALUE;
 	WIN32_FIND_DATA w32FD;
 	JSObject * retObj = NULL;
+	JS_BeginRequest(cx);
 	if(JS_InstanceOf(cx, obj, &findFileClass, NULL))
 	{
 		findHandle = JS_GetPrivate(cx, obj);
+		JS_YieldRequest(cx);
 		if(FindNextFile(findHandle, &w32FD) == FALSE)
 		{
+			JS_EndRequest(cx);
 			*rval = JSVAL_FALSE;
 			return JS_TRUE;
 		}
@@ -42,9 +45,11 @@ JSBool find_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval
 			return JS_FALSE;
 		}
 		JSString * searchString = JS_ValueToString(cx, argv[0]);
+		JS_YieldRequest(cx);
 		findHandle = FindFirstFile((LPWSTR)JS_GetStringChars(searchString), &w32FD);
 		if(findHandle == INVALID_HANDLE_VALUE)
 		{
+			JS_EndRequest(cx);
 			*rval = JSVAL_FALSE;
 			return JS_TRUE;
 		}
@@ -72,6 +77,7 @@ JSBool find_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval
 	JS_SetProperty(cx, retObj, "createTime", &createTime);
 	JS_SetProperty(cx, retObj, "lastWriteTime", &lastWriteTime);
 	JS_SetPrivate(cx, retObj, findHandle);
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 

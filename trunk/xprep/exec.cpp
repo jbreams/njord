@@ -48,6 +48,7 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	JSString * jsCmdLine = NULL;
 	JSBool jsBatch = FALSE, jsWait = TRUE, jsHide = TRUE, jsCapture = TRUE;
 
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S /b b b b", &jsCmdLine, &jsWait, &jsHide, &jsBatch, &jsCapture))
 	{
 		JS_ReportError(cx, "Error parsing arguments in js_exec");
@@ -59,6 +60,7 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		JS_ReportError(cx, "exec called with a blank commandline.");
 		return JS_FALSE;
 	}
+	jsrefcount rCount = JS_SuspendRequest(cx);
 
 	LPWSTR appName = NULL;
 	HANDLE stdOutRead = NULL, stdOutWrite = NULL, stdErrorRead = NULL, stdErrorWrite = NULL, threadHandles[3];
@@ -110,6 +112,8 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
 		*rval = JSVAL_TRUE;
+		JS_ResumeRequest(cx, rCount);
+		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 
@@ -122,6 +126,7 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	}
 	else
 		WaitForSingleObject(pi.hProcess, INFINITE);
+	JS_ResumeRequest(cx, rCount);
 
 	JSString * stdOutString = NULL, * stdErrString = NULL;
 	if(jsCapture == TRUE)
@@ -158,6 +163,7 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	CloseHandle(pi.hThread);
 
 functionEnd:
+	JS_EndRequest(cx);
 	if(stdOutWrite != NULL)
 	{
 		CloseHandle(stdOutRead);

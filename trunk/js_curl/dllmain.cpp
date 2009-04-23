@@ -120,8 +120,10 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 {
 	if(curl_global_init(CURL_GLOBAL_ALL) != 0)
 		return FALSE;
+	JS_BeginRequest(cx);
 	JS_DefineConstDoubles(cx, global, (JSConstDoubleSpec*)curlOptConsts);
 	JS_InitClass(cx, global, NULL, &curlClass, curl_init, 0, NULL, curlClassMethods, NULL, NULL);
+	JS_EndRequest(cx);
 	return TRUE;
 }
 

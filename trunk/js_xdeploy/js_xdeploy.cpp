@@ -42,11 +42,14 @@ JSBool setcomputername(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 	JSString * newName;
 	COMPUTER_NAME_FORMAT nameType = ComputerNamePhysicalNetBIOS;
 
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S /u", &newName, (DWORD*)&nameType))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in setcomputername.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
+	JS_EndRequest(cx);
 
 	*rval = SetComputerNameEx(nameType, (LPWSTR)JS_GetStringChars(newName)) != 0 ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
@@ -57,12 +60,15 @@ JSBool netjoindomain(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	JSString * serverStr = NULL, * domainStr = NULL, *accountOUStr = NULL, *accountStr = NULL, *passwordStr = NULL;
 	DWORD joinOptions = 0;
 
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S S S S u", &domainStr, &accountOUStr, &accountStr, &passwordStr, &joinOptions))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in netjoindomain");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
+	JS_YieldRequest(cx);
 	DWORD result = NetJoinDomain(NULL, (LPWSTR)JS_GetStringChars(domainStr), (LPWSTR)JS_GetStringChars(accountOUStr),
 		(LPWSTR)JS_GetStringChars(accountStr), (LPWSTR)JS_GetStringChars(passwordStr), joinOptions);
 	if(result == NERR_Success)
@@ -70,15 +76,19 @@ JSBool netjoindomain(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		*rval = JSVAL_TRUE;
 		return JS_TRUE;
 	}
-	return JS_NewNumberValue(cx, result, rval);
+	JSBool retBool = JS_NewNumberValue(cx, result, rval);
+	JS_EndRequest(cx);
+	return retBool;
 }
 
 JSBool netlocalgroupaddsid(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSString * groupName, *sidString;
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S S", &groupName, &sidString))
 	{
 		JS_ReportError(cx, "Unable to parse argument in netlocalgroupaddsid");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
@@ -88,6 +98,7 @@ JSBool netlocalgroupaddsid(JSContext * cx, JSObject * obj, uintN argc, jsval * a
 	LOCALGROUP_MEMBERS_INFO_0 passed;
 	passed.lgrmi0_sid = realSid;
 
+	JS_YieldRequest(cx);
 	NET_API_STATUS status = NetLocalGroupAddMembers(NULL, (LPWSTR)JS_GetStringChars(groupName), 0, (LPBYTE)&passed, 1);
 	LocalFree(realSid);
 	
@@ -95,6 +106,7 @@ JSBool netlocalgroupaddsid(JSContext * cx, JSObject * obj, uintN argc, jsval * a
 		*rval = JSVAL_TRUE;
 	else
 		JS_NewNumberValue(cx, status, rval);
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -104,9 +116,11 @@ JSBool netlocalgroupaddmembers(JSContext * cx, JSObject * obj, uintN argc, jsval
 	JSObject * membersArray = NULL;
 	JSString * singleMember = NULL;
 
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S *", &groupName) || argc < 2)
 	{
 		JS_ReportError(cx, "Unable to parse argument in netlocalgroupaddmembers");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
@@ -116,6 +130,7 @@ JSBool netlocalgroupaddmembers(JSContext * cx, JSObject * obj, uintN argc, jsval
 		if(!JS_IsArrayObject(cx, membersArray))
 		{
 			JS_ReportError(cx, "netlocalgroupaddmembers takes either a string or an array of strings as an argument. Invalid type specified.");
+			JS_EndRequest(cx);
 			return JS_FALSE;
 		}
 	}
@@ -124,6 +139,7 @@ JSBool netlocalgroupaddmembers(JSContext * cx, JSObject * obj, uintN argc, jsval
 	else
 	{
 		JS_ReportError(cx, "netlocalgroupaddmembers takes either a string or an array of strings as an argument. Invalid type specified.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 	
@@ -151,15 +167,19 @@ JSBool netlocalgroupaddmembers(JSContext * cx, JSObject * obj, uintN argc, jsval
 	DWORD result = NetLocalGroupAddMembers(NULL, (LPWSTR)JS_GetStringChars(groupName), 3, (LPBYTE)members, memberCount);
 	delete [] members;
 
-	return JS_NewNumberValue(cx, result, rval);
+	JSBool retBool = JS_NewNumberValue(cx, result, rval);
+	JS_EndRequest(cx);
+	return retBool;
 }
 
 JSBool lookupAccountName(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSString * accountName;
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S", &accountName))
 	{
 		JS_ReportError(cx, "Error parsing arguments in lookupAccountName");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
@@ -172,11 +192,13 @@ JSBool lookupAccountName(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	domainName = (LPWSTR)JS_malloc(cx, (rdSize + 1) * sizeof(TCHAR));
 	sid = (PSID)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sidSize);
 
+	JS_YieldRequest(cx);
 	if(!LookupAccountName(NULL, (LPWSTR)JS_GetStringChars(accountName), sid, &sidSize, domainName, &rdSize, &peUse))
 	{
 		HeapFree(GetProcessHeap(), 0, sid);
 		JS_free(cx, domainName);
 		*rval = JSVAL_FALSE;
+		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 
@@ -194,48 +216,8 @@ JSBool lookupAccountName(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	jsval peUseVal;
 	JS_NewNumberValue(cx, peUse, &peUseVal);
 	JS_DefineProperty(cx, retObj, "type", peUseVal, NULL, NULL,  JSPROP_ENUMERATE | JSPROP_READONLY);
+	JS_EndRequest(cx);
 	return JS_TRUE;
-}
-
-JSBool getWMIProperty(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
-{
-	JSString * className, * propertyName, *retString;
-	if(!JS_ConvertArguments(cx, argc, argv, "S S", &className, &propertyName))
-	{
-		JS_ReportError(cx, "Unable to parse arguments in GetWMIProperty.");
-		return JS_FALSE;
-	}
-
-	IEnumWbemClassObject * pEnumObjInfo = NULL;
-	IWbemClassObject * pObjInfo = NULL;
-	_bstr_t outputStr;
-	DWORD nResults = 0;
-	HRESULT hr = S_OK;
-	_variant_t output;
-	hr = pSvc->CreateInstanceEnum(_bstr_t((LPWSTR)JS_GetStringChars(className)), WBEM_FLAG_FORWARD_ONLY, NULL, &pEnumObjInfo);
-	if(hr != WBEM_S_NO_ERROR)
-		goto error;
-	hr = pEnumObjInfo->Next(WBEM_INFINITE, 1, &pObjInfo, &nResults);
-	if(hr != WBEM_S_NO_ERROR)
-		goto error;
-	hr = pObjInfo->Get((LPWSTR)JS_GetStringChars(propertyName), 0, &output, NULL, NULL);
-	if(hr != WBEM_S_NO_ERROR)
-		goto error;
-
-	pObjInfo->Release();
-	pEnumObjInfo->Release();
-
-	outputStr = (_bstr_t)output;
-	retString = JS_NewUCStringCopyZ(cx, (jschar*)(LPWSTR)outputStr);
-	*rval = STRING_TO_JSVAL(retString);
-	return JS_TRUE;
-
-error:
-	if(pObjInfo != NULL)
-		pObjInfo->Release();
-	if(pEnumObjInfo != NULL)
-		pEnumObjInfo->Release();
-	return JS_NewNumberValue(cx, hr, rval);
 }
 
 JSBool GetLastNetErrorMessage(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
@@ -248,6 +230,7 @@ JSBool GetLastNetErrorMessage(JSContext * cx, JSObject * obj, uintN argc, jsval 
 		return JS_FALSE;
 	}
 
+	JS_BeginRequest(cx);
 	JS_ValueToECMAUint32(cx, *argv, &dwLastError);
 	DWORD dwFormatFlags = FORMAT_MESSAGE_ALLOCATE_BUFFER |
         FORMAT_MESSAGE_IGNORE_INSERTS |
@@ -270,6 +253,7 @@ JSBool GetLastNetErrorMessage(JSContext * cx, JSObject * obj, uintN argc, jsval 
 
 	JSString * rString = JS_NewUCStringCopyN(cx, (jschar*)buffer, size);
 	*rval = STRING_TO_JSVAL(rString);
+	JS_EndRequest(cx);
 	LocalFree(buffer);
 	return JS_TRUE;
 }
@@ -306,13 +290,14 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "NetLocalGroupAddMembers", netlocalgroupaddmembers, 2, 0 },
 		{ "NetLocalGroupAddSid", netlocalgroupaddsid, 2, 0 },
 		{ "NetGetLastErrorMessage", GetLastNetErrorMessage, 1, 0 },
-		{ "GetWMIProperty", getWMIProperty, 2, 0 },
 		{ "LookupAccountName", lookupAccountName, 1, 0 },
 		{ 0 },
 	};
 
+	JS_BeginRequest(cx);
 	JS_DefineFunctions(cx, global, xdeployFunctions);
 	JS_DefineConstDoubles(cx, global, xdeployConsts);
+	JS_EndRequest(cx);
 	return TRUE;
 }
 

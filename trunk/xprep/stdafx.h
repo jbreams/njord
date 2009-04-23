@@ -17,6 +17,7 @@
 #include <memory.h>
 #include <tchar.h>
 
+#define JS_THREADSAFE
 #include "jsapi.h"
 #include "jsstr.h"
 

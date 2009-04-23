@@ -126,11 +126,14 @@ JSBool curl_setopt(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	}
 	CURL * sessionHandle = JS_GetPrivate(cx, obj);
 	CURLoption curlOption;
+	JS_BeginRequest(cx);
 	if(JS_ValueToInt32(cx, argv[0], (int32*)&curlOption) == JS_FALSE)
 	{
 		JS_ReportError(cx, "Unable to parse curl option code.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
+
 
 	JSType optionType = JSTYPE_NULL;
 	for(DWORD i = 0; i < sizeof(curlOptAssociations) / sizeof(struct curlopt_assoc); i++)
@@ -145,6 +148,7 @@ JSBool curl_setopt(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	if(optionType == JSTYPE_NULL)
 	{
 		JS_ReportError(cx, "No curl option specified or invalid type.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 	CURLcode result = CURLE_CONV_FAILED;
@@ -154,6 +158,7 @@ JSBool curl_setopt(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 		if(strValue == NULL)
 		{
 			JS_ReportError(cx, "Unable to parse string option.");
+			JS_EndRequest(cx);
 			return JS_FALSE;
 		}
 		result = curl_easy_setopt(sessionHandle, curlOption, JS_GetStringBytes(strValue));
@@ -164,6 +169,7 @@ JSBool curl_setopt(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 		if(!JS_ValueToECMAUint32(cx, argv[1], &numberValue))
 		{
 			JS_ReportError(cx, "Unable to parse number option.");
+			JS_EndRequest(cx);
 			return JS_FALSE;
 		}
 		result = curl_easy_setopt(sessionHandle, curlOption, numberValue);
@@ -174,15 +180,18 @@ JSBool curl_setopt(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 		if(!JS_ValueToBoolean(cx, argv[1], &booleanValue))
 		{
 			JS_ReportError(cx, "Unable to parse boolean option.");
+			JS_EndRequest(cx);
 			return JS_FALSE;
 		}
 		result = curl_easy_setopt(sessionHandle, curlOption, (DWORD)booleanValue);
 	}
 	if(result != CURLE_OK)
 	{
+		JS_EndRequest(cx);
 		return JS_NewNumberValue(cx, result, rval);
 	}
 	*rval = JSVAL_TRUE;
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -230,9 +239,11 @@ JSBool curl_saveas(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 		JS_ReportError(cx, "Must provide a path to saveas.");
 		return JS_FALSE;
 	}
+	JS_BeginRequest(cx);
 	CURL * sessionHandle = JS_GetPrivate(cx, obj);
 	JSString * path = JS_ValueToString(cx, argv[0]);
 
+	jsrefcount rCount = JS_SuspendRequest(cx);
 	HANDLE openFile = CreateFile((LPWSTR)JS_GetStringChars(path), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 	if(openFile == NULL)
 	{
@@ -243,9 +254,11 @@ JSBool curl_saveas(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	curl_easy_setopt(sessionHandle, CURLOPT_WRITEDATA, openFile);
 	CURLcode result = curl_easy_perform(sessionHandle);
 	CloseHandle(openFile);
+	JS_ResumeRequest(cx, rCount);
 	if(result != 0)
-		return JS_NewNumberValue(cx, result, rval);
+		JS_NewNumberValue(cx, result, rval);
 	*rval = JSVAL_TRUE;
+	JS_EndRequest(cx);
 	return JS_TRUE;	
 }
 
@@ -263,20 +276,26 @@ JSBool curl_perform(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	if(result != 0)
 	{
 		HeapFree(GetProcessHeap(), 0, pBuf.buffer);
-		return JS_NewNumberValue(cx, result, rval);
+		JS_BeginRequest(cx);
+		JSBool retBool = JS_NewNumberValue(cx, result, rval);
+		JS_EndRequest(cx);
+		return retBool;
 	}
 
 	LPBYTE actualBuffer = (LPBYTE)JS_malloc(cx, pBuf.used + 1);
 	memset(actualBuffer, 0, pBuf.used + 1);
 	memcpy_s(actualBuffer, pBuf.used + 1, pBuf.buffer, pBuf.used);
 	HeapFree(GetProcessHeap(), 0, pBuf.buffer);
+	JS_BeginRequest(cx);
 	JSString * retString = JS_NewString(cx, (char*)actualBuffer, pBuf.used);
 	if(retString == NULL)
 	{
 		JS_ReportError(cx, "Unable to allocate buffer for returned content.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 	*rval = STRING_TO_JSVAL(retString);
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 

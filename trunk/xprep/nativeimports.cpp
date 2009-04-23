@@ -17,7 +17,7 @@ JSBool xprep_load_native(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 		JS_ReportError(cx, "Argument passed is not a string. Must pass filename of library to load.");
 		return JS_FALSE;
 	}
-	
+	JS_BeginRequest(cx);
 	JSString * fileNameStr = JS_ValueToString(cx, argv[0]);
 	LPWSTR fileName = (LPWSTR)JS_GetStringChars(fileNameStr);
 	HMODULE jsLib = LoadLibrary(fileName);
@@ -27,6 +27,7 @@ JSBool xprep_load_native(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 		return JS_FALSE;
 	}
 
+	jsrefcount rCount = JS_SuspendRequest(cx);
 	InitExports ie = (InitExports)GetProcAddress(jsLib, "InitExports");
 	if(ie == NULL)
 	{
@@ -40,6 +41,7 @@ JSBool xprep_load_native(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 		JS_ReportError(cx, "Error in InitExports.");
 		return JS_FALSE;
 	}
+	JS_ResumeRequest(cx, rCount);
 
 	CleanupExports ce = (CleanupExports)GetProcAddress(jsLib, "CleanupExports");
 	if(ce == NULL)
@@ -63,6 +65,7 @@ JSBool xprep_load_native(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	cleanupRoutines[jsExtCount].libHandle = jsLib;
 	jsExtCount++;
 	*rval = JSVAL_TRUE;
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 

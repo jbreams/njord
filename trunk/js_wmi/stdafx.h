@@ -12,8 +12,8 @@
 #include <windows.h>
 #define XP_WIN
 #define JS_THREADSAFE
-#include <jsapi.h>
-#include <jsstr.h>
+#include "jsapi.h"
+#include "jsstr.h"
 
 
 // TODO: reference additional headers your program requires here
