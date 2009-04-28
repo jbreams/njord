@@ -10,36 +10,7 @@
 #define JS_GECKO2_API __declspec(dllimport)
 #endif
 
-enum GECKO_CALLBACK {
-	GECKO_SETSTATUS,
-	GECKO_SIZEBROWSERTO,
-	GECKO_SHOWASMODAL,
-	GECKO_EXITMODAL,
-	GECKO_DOCUMENTLOADED,
-	GECKO_LOCATION,
-	GECKO_VISIBILITY,
-	GECKO_SETTITLE,
-	GECKO_OPENURI
-};
-
-class MozViewListener;
-class WindowCreator;
-
-class nsIDOMWindow2;
-class nsIDOMWindowInternal;
-class nsIInterfaceRequestor;
-class nsIWebNavigation;
-
-class njEncap
-{
-public:
-	njEncap();
-	~njEncap();
-
-	BOOL HandleCallback(GECKO_CALLBACK callbackType, unsigned int argc, jsval * argv, jsval * rval);
-	HWND GetWndHandle(BOOL parent);
-	JSContext * getContext();
-
-	class Private;
-	Private * mPrivate;
-};
+JSBool g2_term(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval);
+JSBool g2_init(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval);
+JSBool g2_get_input_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval);
+DWORD UiThread(LPVOID lpParam);

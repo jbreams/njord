@@ -1,23 +1,29 @@
 #include "stdafx.h"
-#include "js_gecko2.h"
+#include "nsXULAppApi.h"
+#include "nsXPComGlue.h"
+#include "nsCOMPtr.h"
+#include "nsIInterfaceRequestorUtils.h"
+#include "nsComponentManagerUtils.h"
+#include "nsWeakReference.h"
+#include "nsStringAPI.h"
 #include "domeventlistener.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMEventTarget.h"
 
-NS_IMPL_ISUPPORTS1(EventListener,
-				   nsIDOMEventListener);
+NS_IMPL_ISUPPORTS1(DOMEventListener, nsIDOMEventListener)
 
-EventListener::EventListener(njEncap *aOwner)
-: mOwner(aOwner)
+DOMEventListener::DOMEventListener(JSContext *aCx)
+{
+	cx = aCx;
+}
+
+DOMEventListener::~DOMEventListener()
 {
 
 }
 
-EventListener::~EventListener()
+NS_IMETHODIMP DOMEventListener::HandleEvent(nsIDOMEvent *aEvent)
 {
-
-}
-
-NS_IMETHODIMP EventListener::HandleEvent(nsIDOMEvent *domevent)
-{
+	nsIDOMEventTarget * target;
 	return NS_OK;
 }
