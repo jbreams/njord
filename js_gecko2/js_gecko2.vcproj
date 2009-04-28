@@ -41,8 +41,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;..\xulrunner-sdk\sdk\include&quot;;..\spidermonkey\include;&quot;..\xulrunner-sdk\include\docshell&quot;;&quot;..\xulrunner-sdk\include\xulapp&quot;;&quot;..\xulrunner-sdk\include\necko&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\widget&quot;;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\pref&quot;;&quot;..\xulrunner-sdk\include\gfx&quot;;&quot;..\xulrunner-sdk\include\embed_base&quot;"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS"
+				AdditionalIncludeDirectories="..\spidermonkey\include;&quot;..\xulrunner-sdk\include\docshell&quot;;&quot;..\xulrunner-sdk\include\xulapp&quot;;&quot;..\xulrunner-sdk\include\necko&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\widget&quot;;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\pref&quot;;&quot;..\xulrunner-sdk\include\gfx&quot;;&quot;..\xulrunner-sdk\include\embed_base&quot;;&quot;..\xulrunner-sdk\include\webbrwsr&quot;;&quot;..\xulrunner-sdk\include\xpconnect&quot;;&quot;..\xulrunner-sdk\include\profdirserviceprovider&quot;;&quot;..\xulrunner-sdk\include\nspr&quot;;&quot;..\xulrunner-sdk\include\string&quot;;&quot;..\xulrunner-sdk\include\uriloader&quot;;&quot;..\xulrunner-sdk\include\profile&quot;;&quot;..\xulrunner-sdk\include\windowwatcher&quot;"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS;XPCOM_GLUE=1"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
@@ -61,6 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="..\spidermonkey\$(ConfigurationName)\js32.lib ..\xulrunner-sdk\lib\xpcomglue.lib"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -173,10 +174,6 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\contentlistener.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\dllmain.cpp"
 				>
 				<FileConfiguration
@@ -203,7 +200,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\frontend.cpp"
+				RelativePath=".\embeddingsetup.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\inputvalue.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\jsexports.cpp"
 				>
 			</File>
 			<File
@@ -227,7 +232,11 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\webbrowserchrome.cpp"
+				RelativePath=".\uiwndthread.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\WebBrowserChrome.cpp"
 				>
 			</File>
 		</Filter>
@@ -237,15 +246,15 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath=".\contentlistener.h"
-				>
-			</File>
-			<File
 				RelativePath=".\domeventlistener.h"
 				>
 			</File>
 			<File
 				RelativePath=".\js_gecko2.h"
+				>
+			</File>
+			<File
+				RelativePath=".\privatedata.h"
 				>
 			</File>
 			<File
@@ -257,7 +266,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\webbrowserchrome.h"
+				RelativePath=".\WebBrowserChrome.h"
 				>
 			</File>
 		</Filter>

@@ -1,15 +1,14 @@
 #include "nsIDOMEventListener.h"
 
-class njEncap;
-class EventListener : public nsIDOMEventListener
+class DOMEventListener : public nsIDOMEventListener
 {
 public:
-	EventListener(njEncap * aOwner);
-	virtual ~EventListener();
+	DOMEventListener(JSContext * cx);
+	virtual ~DOMEventListener();
 
 	NS_DECL_ISUPPORTS
 	NS_DECL_NSIDOMEVENTLISTENER
 
 private:
-	njEncap * mOwner;
+	JSContext * cx;
 };
