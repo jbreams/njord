@@ -1,47 +1,44 @@
-#include "nsStringAPI.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsIWebBrowserChromeFocus.h"
+
+#include "nsIWebBrowser.h"
+#include "nsIWebProgressListener.h"
 #include "nsIEmbeddingSiteWindow.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsIObserver.h"
-#include "nsIWebProgressListener.h"
-#include "nsIWebBrowser.h"
 
 #include "nsCOMPtr.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsWeakReference.h"
 
 class WebBrowserChrome   : public nsIWebBrowserChrome,
-                           public nsIWebBrowserChromeFocus,
-                           public nsIEmbeddingSiteWindow,
-                           public nsIInterfaceRequestor,
+						   public nsIWebBrowserChromeFocus,
+						   public nsIInterfaceRequestor,
+						   public nsIEmbeddingSiteWindow,
 						   public nsIWebProgressListener,
-                           public nsSupportsWeakReference
-
+						   public nsSupportsWeakReference
 {
 public:
-    WebBrowserChrome(HWND myWnd);
+    WebBrowserChrome();
     virtual ~WebBrowserChrome();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBBROWSERCHROME
+    NS_DECL_NSIWEBPROGRESSLISTENER
     NS_DECL_NSIWEBBROWSERCHROMEFOCUS
-	NS_DECL_NSIWEBPROGRESSLISTENER
     NS_DECL_NSIEMBEDDINGSITEWINDOW
     NS_DECL_NSIINTERFACEREQUESTOR
 
-    void     SetParent(nsIWebBrowserChrome *aParent)
-               { mDependentParent = aParent; }
+	nsresult CreateBrowser(PRInt32 aX, PRInt32 aY, PRInt32 aCX, PRInt32 aCY);
 
 protected:
 
-    void ContentFinishedLoading();
-
     HWND         mNativeWindow;
+	HWND		 mContainerWindow;
     PRUint32     mChromeFlags;
     PRBool       mContinueModalLoop;
     PRBool       mSizeSet;
+	PRBool		 mDocumentLoaded;
+	LPSTR		 mCurrentLocation;
 
     nsCOMPtr<nsIWebBrowser> mWebBrowser;
-    nsCOMPtr<nsIWebBrowserChrome> mDependentParent; // opener (for dependent windows only)
 };

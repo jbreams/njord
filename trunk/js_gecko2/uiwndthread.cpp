@@ -17,12 +17,12 @@
 #include "nsIWebBrowser.h"
 #include "nsIWebBrowserFocus.h"
 #include "nsIWebBrowserStream.h"
+#include "nsIWebBrowserChrome.h"
 #include "nsIWebNavigation.h"
 #include "nsIWidget.h"
 #include "privatedata.h"
 #include "nsIWindowCreator2.h"
 #include "nsIWindowWatcher.h"
-#include "nsIWebBrowserChrome.h"
 
 BOOL keepUIGoing = FALSE;
 CRITICAL_SECTION viewsLock;
@@ -30,54 +30,41 @@ PrivateData * viewsHead = NULL;
 
 LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	WebBrowserChrome * mChrome = (WebBrowserChrome*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
 	switch(message)
 	{
+    case WM_CLOSE:
+		if(mChrome)
+		{
+			mChrome->ExitModalEventLoop(0);
+			mChrome->DestroyBrowserWindow();
+		}
+		break;
+    case WM_SIZE:
+		if(mChrome)
+		{
+			RECT cRect;
+			GetClientRect(hWnd, &cRect);
+			mChrome->SizeBrowserTo(cRect.right - cRect.left, cRect.bottom - cRect.top);
+		}
+		break;
+    case WM_ACTIVATE:
+		if (mChrome) {
+			switch (wParam) {
+			case WA_CLICKACTIVE:
+			case WA_ACTIVE:
+				mChrome->SetFocus();
+				break;
+			}
+		}
+		break;
+	case WM_ERASEBKGND:
+        // Reduce flicker by not painting the non-visible background
+        return 1;
 	default:
 		return ::DefWindowProc(hWnd, message, wParam, lParam);
 	}
-}
-
-BOOL PrivateData::CreateBrowser(PRUint32 aChromeFlags)
-{
-	nsresult rv;
-	EnterCriticalSection(&mCriticalSection);
-	mWebBrowser = do_CreateInstance(NS_WEBBROWSER_CONTRACTID, &rv);
-	nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mWebBrowser);
-	rv = baseWindow->InitWindow(mParentWindow, NULL, requestedRect.left, requestedRect.top,
-		requestedRect.right - requestedRect.left, requestedRect.bottom - requestedRect.top);
-
-	nsIWebBrowserChrome ** aNewWindow = getter_AddRefs(mChrome);
-	CallQueryInterface(static_cast<nsIWebBrowserChrome*>(new WebBrowserChrome(mParentWindow)), aNewWindow);
-
-	rv = mWebBrowser->SetContainerWindow(mChrome);
-	rv = mChrome->SetWebBrowser(mWebBrowser);
-	rv = mChrome->SetChromeFlags(aChromeFlags);
-
-	if(aChromeFlags * (nsIWebBrowserChrome::CHROME_OPENAS_CHROME | nsIWebBrowserChrome::CHROME_OPENAS_DIALOG))
-	{
-		nsCOMPtr<nsIDocShellTreeItem>docShellItem(do_QueryInterface(baseWindow));
-		docShellItem->SetItemType(nsIDocShellTreeItem::typeChromeWrapper);
-	}
-
-	rv = baseWindow->Create();
-	rv = baseWindow->SetVisibility(PR_TRUE);
-
-	nsCOMPtr<nsIDOMWindow> domWindow;
-	rv = mWebBrowser->GetContentDOMWindow(getter_AddRefs(domWindow));
-	mDOMWindow = do_QueryInterface(domWindow);
-
-	mWebNavigation = do_QueryInterface(baseWindow);
-
-	nsCOMPtr<nsIWebProgressListener> listener = do_QueryInterface(mChrome);
-	nsCOMPtr<nsIWeakReference> thisListener(do_GetWeakReference(listener));
-	rv = mWebBrowser->AddWebBrowserListener(thisListener, NS_GET_IID(nsIWebProgressListener));
-
-	nsCOMPtr<nsIWebBrowserFocus> browserFocus;
-	browserFocus = do_QueryInterface(mWebBrowser);
-	rv = browserFocus->Activate();
-	LeaveCriticalSection(&mCriticalSection);
-	initialized = TRUE;
-	return TRUE;
+	return 0;
 }
 
 class WindowCreator: public nsIWindowCreator2
@@ -99,24 +86,6 @@ NS_IMPL_ISUPPORTS2(WindowCreator, nsIWindowCreator, nsIWindowCreator2)
 NS_IMETHODIMP WindowCreator::CreateChromeWindow(nsIWebBrowserChrome *parent, PRUint32 chromeFlags, nsIWebBrowserChrome **_retval)
 {
 	NS_ENSURE_ARG_POINTER(_retval);
-
-	HWND parentWindow;	
-	WebBrowserChrome * mParent = static_cast<WebBrowserChrome*> (parent);
-	mParent->GetSiteWindow((void**)&parentWindow);
-	HWND newWnd = ::CreateWindowW(TEXT("NJORD_GECKOEMBED_2"), TEXT("Gecko"), WS_OVERLAPPEDWINDOW, 0, 0, 800, 600, 
-		parentWindow, NULL, GetModuleHandle(NULL), NULL);
-
-	PrivateData * newPrivateData = new PrivateData();
-	newPrivateData->mParentWindow = newWnd;
-	newPrivateData->CreateBrowser(0);
-
-	EnterCriticalSection(&viewsLock);
-	newPrivateData->next = viewsHead;
-	viewsHead = newPrivateData;
-	LeaveCriticalSection(&viewsLock);
-
-	*_retval = newPrivateData->mChrome;
-	NS_IF_ADDREF(*_retval);
 	return NS_OK;
 }
 
@@ -149,23 +118,26 @@ DWORD UiThread(LPVOID lpParam)
 		{
 			if(curView->initialized == FALSE)
 			{
-				curView->mParentWindow = ::CreateWindowW(TEXT("NJORD_GECKOEMBED_2"), TEXT("Gecko"), WS_OVERLAPPEDWINDOW, 0, 0, 800, 600, NULL, NULL, GetModuleHandle(NULL), NULL);
-				curView->requestedRect.top = 0;
-				curView->requestedRect.left = 0;
-				curView->requestedRect.right = 800;
-				curView->requestedRect.bottom = 600;
-				curView->CreateBrowser(0);
-				ShowWindow(curView->mParentWindow, SW_SHOW);
+				nsresult rv;
+				curView->mChrome = new WebBrowserChrome();
+				NS_ADDREF(curView->mChrome);
+
+				curView->mChrome->CreateBrowser(curView->requestedRect.left, curView->requestedRect.top, curView->requestedRect.right - curView->requestedRect.left,
+					curView->requestedRect.bottom - curView->requestedRect.top);
+				curView->initialized = TRUE;
 			}
 			curView = curView->next;
 		}
 		LeaveCriticalSection(&viewsLock);
 
-		MSG msg;
-		if(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		for(WORD messageCount = 0; messageCount < 500; messageCount++)
 		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
+			MSG msg;
+			if(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
 		}
 	}
 

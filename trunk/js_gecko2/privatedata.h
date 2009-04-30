@@ -3,6 +3,7 @@ public:
 	PrivateData()
 	{
 		InitializeCriticalSection(&mCriticalSection);
+		next = NULL;
 		initialized = FALSE;
 	}
 	~PrivateData()
@@ -10,17 +11,10 @@ public:
 		DeleteCriticalSection(&mCriticalSection);
 	}
 
-	HWND mParentWindow;
-	PrivateData * mParentView;
-
-	BOOL CreateBrowser(PRUint32 aChromeFlags);
-
-	nsCOMPtr<nsIWebBrowser> mWebBrowser;
-	nsCOMPtr<nsIDOMWindow2> mDOMWindow;
-	nsCOMPtr<nsIWebNavigation> mWebNavigation;
-	nsCOMPtr<nsIWebBrowserChrome> mChrome;
-	CRITICAL_SECTION mCriticalSection;
-	PrivateData * next;
-	BOOL initialized;
+	WebBrowserChrome * mChrome;
 	RECT requestedRect;
+	BOOL initialized;
+	PrivateData * next;
+	CRITICAL_SECTION mCriticalSection;
+
 };

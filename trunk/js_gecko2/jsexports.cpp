@@ -42,10 +42,28 @@ JSObject * GeckoViewProto;
 JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	PrivateData * newPrivateData = new PrivateData();
+
+	JS_BeginRequest(cx);
+	WORD cX, cY;
+
+	if(!JS_ConvertArguments(cx, argc, argv, "c c", &cX, &cY))
+	{
+		JS_ReportWarning(cx, "No dimensions specified for creating the view. Defaulting.");
+		cX = 800;
+		cY = 600;
+	}
+
 	EnterCriticalSection(&viewsLock);
 	newPrivateData->next = viewsHead;
 	viewsHead = newPrivateData;
 	LeaveCriticalSection(&viewsLock);
+
+	WORD x = (GetSystemMetrics(SM_CXSCREEN) - cX) / 2;
+	WORD y = (GetSystemMetrics(SM_CYSCREEN) - cY) / 2;
+	newPrivateData->requestedRect.top = y;
+	newPrivateData->requestedRect.left = x;
+	newPrivateData->requestedRect.bottom = y + cY;
+	newPrivateData->requestedRect.right = x + cX;
 
 	if(nViews == 0)
 	{
@@ -86,7 +104,9 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	}
 	JS_EndRequest(cx);
 
-	nsCOMPtr<nsIWebBrowserStream> wbStream = do_QueryInterface(mPrivate->mWebBrowser);
+	nsCOMPtr<nsIWebBrowser> mWebBrowser;
+	mPrivate->mChrome->GetWebBrowser(getter_AddRefs(mWebBrowser));
+	nsCOMPtr<nsIWebBrowserStream> wbStream = do_QueryInterface(mWebBrowser);
 	nsCOMPtr<nsIURI> uri;
 	rv = NS_NewURI(getter_AddRefs(uri), nsString(baseUrl));
 	wbStream->OpenStream(uri, nsDependentCString(contentType));
@@ -110,7 +130,10 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	EnterCriticalSection(&mPrivate->mCriticalSection);
-	nsresult result = mPrivate->mWebNavigation->LoadURI((PRUnichar*)uri, nsIWebNavigation::LOAD_FLAGS_NONE, NULL, NULL, NULL);
+	nsCOMPtr<nsIWebBrowser> mWebBrowser;
+	mPrivate->mChrome->GetWebBrowser(getter_AddRefs(mWebBrowser));
+	nsCOMPtr<nsIWebNavigation> mWebNavigation = do_QueryInterface(mWebBrowser);
+	nsresult result = mWebNavigation->LoadURI((PRUnichar*)uri, nsIWebNavigation::LOAD_FLAGS_NONE, NULL, NULL, NULL);
 	LeaveCriticalSection(&mPrivate->mCriticalSection);
 	*rval = result == NS_OK ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
@@ -130,12 +153,13 @@ JSBool g2_destroy(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 JSBool g2_get_dom(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	nsIDOMDocument * mDoc;
-	mPrivate->mDOMWindow->GetDocument(&mDoc);
+	nsCOMPtr<nsIDOMDocument> mDoc;
+	nsCOMPtr<nsIDOMWindow> mDOMWindow = do_GetInterface(static_cast<nsIWebBrowserChrome*>(mPrivate->mChrome));
+	mDOMWindow->GetDocument(getter_AddRefs(mDoc));
 
 	nsCOMPtr<nsIXPConnect>xpc(do_GetService(nsIXPConnect::GetCID()));
 	nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-	xpc->WrapNative(cx, obj, mDoc, nsIDOMDocument::GetIID(), getter_AddRefs(wrapper));
+	xpc->WrapNative(cx, obj, mDoc.get(), nsIDOMDocument::GetIID(), getter_AddRefs(wrapper));
 	JSObject * retObj;
 	wrapper->GetJSObject(&retObj);
 	*rval = OBJECT_TO_JSVAL(retObj);
@@ -157,7 +181,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 	};
 
 	JSFunctionSpec geckoFuncs[] = {
-		{ "GeckoCreateView", g2_create_view, 0, 0 },
+		{ "GeckoCreateView", g2_create_view, 4, 0 },
 		{ "GeckoInit", g2_init, 2, 0 },
 		{ "GeckoTerm", g2_term, 0, 0 },
 		{ 0 }
