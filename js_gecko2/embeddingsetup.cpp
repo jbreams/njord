@@ -141,72 +141,74 @@ JSBool g2_init(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *
 		return JS_TRUE;
 	}
 
-	char * lastBackslash = strrchr(pathToGRE, '\\');
-	LPSTR greDir = (LPSTR)JS_malloc(cx, MAX_PATH);
-	strncpy_s(greDir, MAX_PATH, pathToGRE, lastBackslash - pathToGRE);
-	nsCOMPtr<nsILocalFile>xuldir;
-	rv = NS_NewNativeLocalFile(nsCString(greDir), PR_FALSE, getter_AddRefs(xuldir));
-	JS_free(cx, greDir);
-	if(needToFree)
-		JS_free(cx, pathToGRE);
-	if(NS_FAILED(rv))
 	{
-		JS_NewNumberValue(cx, rv, rval);
-		JS_EndRequest(cx);
-		return JS_TRUE;
-	}
+		char * lastBackslash = strrchr(pathToGRE, '\\');
+		pathToGRE[lastBackslash - pathToGRE] = '\0';
+		
+		nsCOMPtr<nsILocalFile>xuldir;
+		rv = NS_NewNativeLocalFile(nsCString(pathToGRE), PR_FALSE, getter_AddRefs(xuldir));
+		if(needToFree)
+			JS_free(cx, pathToGRE);
+		if(NS_FAILED(rv))
+		{
+			JS_NewNumberValue(cx, rv, rval);
+			JS_EndRequest(cx);
+			return JS_TRUE;
+		}
 
-	LPSTR self = (LPSTR)JS_malloc(cx, MAX_PATH);
-	GetModuleFileNameA(GetModuleHandle(NULL), self, MAX_PATH);
-	LPSTR selfLastBackslash = strrchr(self, '\\');
-	self[selfLastBackslash - self] = '\0';
-	nsCOMPtr<nsILocalFile>appdir;
-	rv = NS_NewNativeLocalFile(nsCString(self), PR_FALSE, getter_AddRefs(appdir));
-	JS_free(cx, self);
-	if(NS_FAILED(rv))
-	{
-		JS_NewNumberValue(cx, rv, rval);
-		JS_EndRequest(cx);
-		return JS_TRUE;
-	}
+		LPSTR self = (LPSTR)JS_malloc(cx, MAX_PATH);
+		GetModuleFileNameA(GetModuleHandle(NULL), self, MAX_PATH);
+		LPSTR selfLastBackslash = strrchr(self, '\\');
+		self[selfLastBackslash - self] = '\0';
+		
+		nsCOMPtr<nsILocalFile>appdir;
+		rv = NS_NewNativeLocalFile(nsCString(self), PR_FALSE, getter_AddRefs(appdir));
+		JS_free(cx, self);
+		if(NS_FAILED(rv))
+		{
+			JS_NewNumberValue(cx, rv, rval);
+			JS_EndRequest(cx);
+			return JS_TRUE;
+		}
 
-	if(profilePath)
-	{
-		rv = NS_NewNativeLocalFile(nsCString(profilePath), PR_FALSE, getter_AddRefs(sProfileDir));
+		if(profilePath)
+		{
+			rv = NS_NewNativeLocalFile(nsCString(profilePath), PR_FALSE, getter_AddRefs(sProfileDir));
+			NS_ENSURE_SUCCESS(rv, rv);
+		}
+		else
+		{
+			nsCOMPtr<nsIFile> profFile;
+			rv = appdir->Clone(getter_AddRefs(profFile));
+			NS_ENSURE_SUCCESS(rv, rv);
+			sProfileDir = do_QueryInterface(profFile);
+			sProfileDir->AppendNative(NS_LITERAL_CSTRING("njordgecko"));
+		}
+
+		PRBool dirExists;
+		rv = sProfileDir->Exists(&dirExists);
 		NS_ENSURE_SUCCESS(rv, rv);
-	}
-	else
-	{
-		nsCOMPtr<nsIFile> profFile;
-		rv = appdir->Clone(getter_AddRefs(profFile));
-		NS_ENSURE_SUCCESS(rv, rv);
-		sProfileDir = do_QueryInterface(profFile);
-		sProfileDir->AppendNative(NS_LITERAL_CSTRING("njordgecko"));
-	}
+		if(!dirExists)
+			sProfileDir->Create(nsIFile::DIRECTORY_TYPE, 0700);
 
-	PRBool dirExists;
-	rv = sProfileDir->Exists(&dirExists);
-	NS_ENSURE_SUCCESS(rv, rv);
-	if(!dirExists)
-		sProfileDir->Create(nsIFile::DIRECTORY_TYPE, 0700);
+		if(sProfileDir && !sProfileLock)
+		{
+			rv = XRE_LockProfileDirectory(sProfileDir, &sProfileLock);
+			NS_ENSURE_SUCCESS(rv, rv);
+		}
 
-	if(sProfileDir && !sProfileLock)
-	{
-		rv = XRE_LockProfileDirectory(sProfileDir, &sProfileLock);
-		NS_ENSURE_SUCCESS(rv, rv);
+		JS_YieldRequest(cx);
+		rv = XRE_InitEmbedding(xuldir, appdir, const_cast<G2EmbedDirectoryProvider*>(&kDirectoryProvider), nsnull, 0);
+		if(NS_FAILED(rv))
+		{
+			JS_NewNumberValue(cx, rv, rval);
+			JS_EndRequest(cx);
+			return JS_TRUE;
+		}
+
+		XRE_NotifyProfile();
+		NS_LogTerm();
 	}
-
-	JS_YieldRequest(cx);
-	rv = XRE_InitEmbedding(xuldir, appdir, const_cast<G2EmbedDirectoryProvider*>(&kDirectoryProvider), nsnull, 0);
-	if(NS_FAILED(rv))
-	{
-		JS_NewNumberValue(cx, rv, rval);
-		JS_EndRequest(cx);
-		return JS_TRUE;
-	}
-
-	XRE_NotifyProfile();
-	NS_LogTerm();
 
 	InitializeCriticalSection(&viewsLock);
 	JS_EndRequest(cx);

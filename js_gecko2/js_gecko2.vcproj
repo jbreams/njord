@@ -196,15 +196,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\domeventlistener.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\embeddingsetup.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\inputvalue.cpp"
 				>
 			</File>
 			<File
@@ -246,15 +238,15 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath=".\domeventlistener.h"
-				>
-			</File>
-			<File
 				RelativePath=".\js_gecko2.h"
 				>
 			</File>
 			<File
 				RelativePath=".\privatedata.h"
+				>
+			</File>
+			<File
+				RelativePath=".\resource.h"
 				>
 			</File>
 			<File
