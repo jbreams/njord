@@ -28,7 +28,8 @@ public:
     NS_DECL_NSIEMBEDDINGSITEWINDOW
     NS_DECL_NSIINTERFACEREQUESTOR
 
-	nsresult CreateBrowser(PRInt32 aX, PRInt32 aY, PRInt32 aCX, PRInt32 aCY);
+	nsresult CreateBrowser(HWND nativeWnd);
+	PRBool		 mDocumentLoaded;
 
 protected:
 
@@ -37,7 +38,6 @@ protected:
     PRUint32     mChromeFlags;
     PRBool       mContinueModalLoop;
     PRBool       mSizeSet;
-	PRBool		 mDocumentLoaded;
 	LPSTR		 mCurrentLocation;
 
     nsCOMPtr<nsIWebBrowser> mWebBrowser;
