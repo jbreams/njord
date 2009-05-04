@@ -72,7 +72,6 @@ void VarStore::SuckOutVars(void * MozViewPtr)
 				AddVariable((LPWSTR)name.get(), (LPWSTR)value.get());
 			}
 		}
-		else if(type.Compare(NS_LITERAL_STRING("button")) == 0) ;
 		else
 		{
 			input->GetValue(value);
@@ -99,6 +98,35 @@ void VarStore::SuckOutVars(void * MozViewPtr)
 		AddVariable((LPWSTR)name.get(), (LPWSTR)value.get());
 		input->Release();
 		inputNode->Release();
+	}
+	inputElements->Release();
+
+	document->GetElementsByTagName(NS_LITERAL_STRING("select"), &inputElements);
+	inputElements->GetLength(&nInputs);
+	for(PRUint32 j = 0; j < nInputs; j++)
+	{
+		nsString name, value;
+		nsIDOMNode * inputNode;
+		nsIDOMHTMLSelectElement * input;
+		inputElements->Item(j, &inputNode);
+		inputNode->QueryInterface(nsIDOMHTMLSelectElement::GetIID(), (void**)&input);
+		input->GetName(name);
+		PRInt32 selectedOption;
+		input->GetSelectedIndex(&selectedOption);
+		nsIDOMHTMLOptionsCollection * optionsCollection;
+		input->GetOptions(&optionsCollection);
+		
+		nsIDOMNode * optionNode;
+		optionsCollection->Item(selectedOption, &optionNode);
+		nsIDOMHTMLOptionElement * option;
+		optionNode->QueryInterface(nsIDOMHTMLOptionElement::GetIID(), (void**)&option);
+		option->GetValue(value);
+		option->Release();
+		optionNode->Release();
+		optionsCollection->Release();
+		input->Release();
+		inputNode->Release();
+		AddVariable((LPWSTR)name.get(), (LPWSTR)value.get());
 	}
 	inputElements->Release();
 	document->Release();

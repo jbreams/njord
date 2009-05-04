@@ -42,10 +42,11 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="..\spidermonkey\include;&quot;..\xulrunner-sdk\include\docshell&quot;;&quot;..\xulrunner-sdk\include\xulapp&quot;;&quot;..\xulrunner-sdk\include\necko&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\widget&quot;;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\pref&quot;;&quot;..\xulrunner-sdk\include\gfx&quot;;&quot;..\xulrunner-sdk\include\embed_base&quot;;&quot;..\xulrunner-sdk\include\webbrwsr&quot;;&quot;..\xulrunner-sdk\include\xpconnect&quot;;&quot;..\xulrunner-sdk\include\profdirserviceprovider&quot;;&quot;..\xulrunner-sdk\include\nspr&quot;;&quot;..\xulrunner-sdk\include\string&quot;;&quot;..\xulrunner-sdk\include\uriloader&quot;;&quot;..\xulrunner-sdk\include\profile&quot;;&quot;..\xulrunner-sdk\include\windowwatcher&quot;"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS;XPCOM_GLUE=1"
-				MinimalRebuild="true"
-				BasicRuntimeChecks="3"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS;XPCOM_GLUE=1;XP_WIN=1"
+				MinimalRebuild="false"
+				BasicRuntimeChecks="0"
 				RuntimeLibrary="3"
+				TreatWChar_tAsBuiltInType="false"
 				UsePrecompiledHeader="2"
 				WarningLevel="3"
 				DebugInformationFormat="4"
@@ -116,10 +117,11 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="&quot;..\xulrunner-sdk\sdk\include&quot;;..\spidermonkey\include"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS"
+				AdditionalIncludeDirectories="..\spidermonkey\include;&quot;..\xulrunner-sdk\include\docshell&quot;;&quot;..\xulrunner-sdk\include\xulapp&quot;;&quot;..\xulrunner-sdk\include\necko&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\widget&quot;;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\pref&quot;;&quot;..\xulrunner-sdk\include\gfx&quot;;&quot;..\xulrunner-sdk\include\embed_base&quot;;&quot;..\xulrunner-sdk\include\webbrwsr&quot;;&quot;..\xulrunner-sdk\include\xpconnect&quot;;&quot;..\xulrunner-sdk\include\profdirserviceprovider&quot;;&quot;..\xulrunner-sdk\include\nspr&quot;;&quot;..\xulrunner-sdk\include\string&quot;;&quot;..\xulrunner-sdk\include\uriloader&quot;;&quot;..\xulrunner-sdk\include\profile&quot;;&quot;..\xulrunner-sdk\include\windowwatcher&quot;"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS;XPCOM_GLUE=1;XP_WIN=1"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
+				TreatWChar_tAsBuiltInType="false"
 				UsePrecompiledHeader="2"
 				WarningLevel="3"
 				DebugInformationFormat="3"
@@ -135,6 +137,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="..\spidermonkey\$(ConfigurationName)\js32.lib ..\xulrunner-sdk\lib\xpcomglue.lib"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -196,7 +199,19 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\domeventhandler.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\domnode.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\embeddingsetup.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\inputvalue.cpp"
 				>
 			</File>
 			<File
@@ -237,6 +252,10 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\domeventhandler.h"
+				>
+			</File>
 			<File
 				RelativePath=".\js_gecko2.h"
 				>

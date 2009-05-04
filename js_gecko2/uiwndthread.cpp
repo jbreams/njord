@@ -6,6 +6,8 @@
 #include "nsComponentManagerUtils.h"
 #include "nsNetUtil.h"
 #include "nsEmbedCID.h"
+#include "nsIProxyObjectManager.h"
+#include "nsProxiedService.h"
 
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeItem.h"
@@ -23,37 +25,43 @@
 #include "privatedata.h"
 #include "nsIWindowCreator2.h"
 #include "nsIWindowWatcher.h"
+#include "js_gecko2.h"
+#include "domeventhandler.h"
 
 BOOL keepUIGoing = FALSE;
 CRITICAL_SECTION viewsLock;
 PrivateData * viewsHead = NULL;
+LONG ThreadInitialized = 0;
 
 LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	WebBrowserChrome * mChrome = (WebBrowserChrome*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+	nsCOMPtr<nsIWebBrowser> mBrowser;
+	if(mChrome)
+		mChrome->GetWebBrowser(getter_AddRefs(mBrowser));
 	switch(message)
 	{
-    case WM_CLOSE:
+	case WM_SIZE:
 		if(mChrome)
 		{
-			mChrome->ExitModalEventLoop(0);
-			mChrome->DestroyBrowserWindow();
+			RECT rect;
+			GetClientRect(hWnd, &rect);
+			nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mBrowser);
+			baseWindow->SetPositionAndSize(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, PR_TRUE);
 		}
-		break;
-    case WM_SIZE:
-		if(mChrome)
-		{
-			RECT cRect;
-			GetClientRect(hWnd, &cRect);
-			mChrome->SizeBrowserTo(cRect.right - cRect.left, cRect.bottom - cRect.top);
-		}
-		break;
+
     case WM_ACTIVATE:
 		if (mChrome) {
+			nsCOMPtr<nsIWebBrowserFocus> mFocus = do_QueryInterface(mBrowser);
 			switch (wParam) {
 			case WA_CLICKACTIVE:
 			case WA_ACTIVE:
-				mChrome->SetFocus();
+				mFocus->Activate();
+				break;
+			case WA_INACTIVE:
+				mFocus->Deactivate();
+				break;
+			default:
 				break;
 			}
 		}
@@ -65,33 +73,6 @@ LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		return ::DefWindowProc(hWnd, message, wParam, lParam);
 	}
 	return 0;
-}
-
-class WindowCreator: public nsIWindowCreator2
-{
-public:
-	WindowCreator();
-	virtual ~WindowCreator()
-	{
-
-	}
-
-	NS_DECL_ISUPPORTS
-	NS_DECL_NSIWINDOWCREATOR
-	NS_DECL_NSIWINDOWCREATOR2
-};
-
-NS_IMPL_ISUPPORTS2(WindowCreator, nsIWindowCreator, nsIWindowCreator2)
-
-NS_IMETHODIMP WindowCreator::CreateChromeWindow(nsIWebBrowserChrome *parent, PRUint32 chromeFlags, nsIWebBrowserChrome **_retval)
-{
-	NS_ENSURE_ARG_POINTER(_retval);
-	return NS_OK;
-}
-
-NS_IMETHODIMP WindowCreator::CreateChromeWindow2(nsIWebBrowserChrome *parent, PRUint32 chromeFlags, PRUint32 contextFlags, nsIURI *uri, PRBool *cancel, nsIWebBrowserChrome **_retval)
-{
-	return CreateChromeWindow(parent, chromeFlags, _retval);
 }
 
 DWORD UiThread(LPVOID lpParam)
@@ -110,6 +91,10 @@ DWORD UiThread(LPVOID lpParam)
 	wc.lpszClassName = TEXT("NJORD_GECKOEMBED_2");
 	RegisterClass(&wc);
 
+	if(!InitGRE(NULL))
+		return 1;
+
+	InterlockedIncrement(&ThreadInitialized);
 	while(keepUIGoing)
 	{
 		EnterCriticalSection(&viewsLock);
@@ -119,28 +104,46 @@ DWORD UiThread(LPVOID lpParam)
 			if(curView->initialized == FALSE)
 			{
 				nsresult rv;
+				HWND nWnd = CreateWindowW(TEXT("NJORD_GECKOEMBED_2"), TEXT("Gecko"), WS_OVERLAPPEDWINDOW, curView->requestedRect.left, curView->requestedRect.top,
+					curView->requestedRect.right - curView->requestedRect.left, curView->requestedRect.bottom - curView->requestedRect.top, NULL, NULL,
+					GetModuleHandle(NULL), NULL);
+				curView->mNativeWindow = nWnd;
 				curView->mChrome = new WebBrowserChrome();
-				NS_ADDREF(curView->mChrome);
-
-				curView->mChrome->CreateBrowser(curView->requestedRect.left, curView->requestedRect.top, curView->requestedRect.right - curView->requestedRect.left,
-					curView->requestedRect.bottom - curView->requestedRect.top);
+				curView->mChrome->CreateBrowser(nWnd);
+				curView->mChrome->GetWebBrowser(getter_AddRefs(curView->mBrowser));
+				curView->mDOMWindow = do_GetInterface(curView->mBrowser);
+				curView->mDOMListener = new DOMEventListener(curView);
 				curView->initialized = TRUE;
 			}
 			curView = curView->next;
 		}
 		LeaveCriticalSection(&viewsLock);
 
-		for(WORD messageCount = 0; messageCount < 500; messageCount++)
+		MSG msg;
+		if(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
-			MSG msg;
-			if(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
 		}
+		else
+			Sleep(100);
 	}
 
+	InterlockedDecrement(&ThreadInitialized);
 	UnregisterClassW(TEXT("NJORD_GECKOEMBED_2"), GetModuleHandle(NULL));
 	return 0;
+}
+
+JSBool g2_init(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	keepUIGoing = TRUE;
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)UiThread, NULL, 0, NULL);
+	LONG stillWaiting = 1;
+	while(stillWaiting)
+	{
+		Sleep(1000);
+		InterlockedCompareExchange(&stillWaiting, 0, ThreadInitialized);
+	}
+	*rval = JSVAL_TRUE;
+	return JS_TRUE;
 }

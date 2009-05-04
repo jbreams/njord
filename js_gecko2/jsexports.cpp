@@ -1,12 +1,16 @@
 #include "stdafx.h"
 #include "js_gecko2.h"
 #include "webbrowserchrome.h"
+#include "domeventhandler.h"
 #include "nsXULAppApi.h"
 #include "nsXPComGlue.h"
 #include "nsStringAPI.h"
 #include "nsComponentManagerUtils.h"
 #include "nsNetUtil.h"
 #include "nsEmbedCID.h"
+#include "nsXPCOMCIDInternal.h"
+#include "nsIProxyObjectManager.h"
+#include "nsProxiedService.h"
 
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeItem.h"
@@ -22,7 +26,6 @@
 #include "nsIWidget.h"
 #include "privatedata.h"
 
-#include "nsIXPConnect.h"
 #include "nsIDOMDocument.h"
 
 extern BOOL keepUIGoing;
@@ -45,6 +48,7 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 
 	JS_BeginRequest(cx);
 	WORD cX, cY;
+	nsresult rv;
 
 	if(!JS_ConvertArguments(cx, argc, argv, "c c", &cX, &cY))
 	{
@@ -65,14 +69,6 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	newPrivateData->requestedRect.bottom = y + cY;
 	newPrivateData->requestedRect.right = x + cX;
 
-	if(nViews == 0)
-	{
-		keepUIGoing = TRUE;
-		HANDLE tHandle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)UiThread, NULL, 0, NULL);
-		CloseHandle(tHandle);
-		nViews++;
-	}
-
 	BOOL inited = FALSE;
 	while(!inited)
 	{
@@ -81,6 +77,12 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		LeaveCriticalSection(&viewsLock);
 		Sleep(50);
 	}
+	
+	ShowWindow(newPrivateData->mNativeWindow, SW_SHOW);
+	newPrivateData->nsIPO = do_GetService(NS_XPCOMPROXY_CONTRACTID, &rv);
+	nsCOMPtr<nsIWebBrowser> browser;
+	newPrivateData->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, NS_GET_IID(nsIWebBrowser), newPrivateData->mBrowser, NS_PROXY_SYNC, getter_AddRefs(browser));
+	newPrivateData->mDOMWindow = do_GetInterface(browser);
 
 	JSObject * retObj = JS_NewObject(cx, &GeckoViewClass, GeckoViewProto, obj);
 	*rval = OBJECT_TO_JSVAL(retObj);
@@ -103,9 +105,9 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 		return JS_FALSE;
 	}
 	JS_EndRequest(cx);
-
 	nsCOMPtr<nsIWebBrowser> mWebBrowser;
-	mPrivate->mChrome->GetWebBrowser(getter_AddRefs(mWebBrowser));
+	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mWebBrowser));
+
 	nsCOMPtr<nsIWebBrowserStream> wbStream = do_QueryInterface(mWebBrowser);
 	nsCOMPtr<nsIURI> uri;
 	rv = NS_NewURI(getter_AddRefs(uri), nsString(baseUrl));
@@ -118,9 +120,9 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 
 JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	LPWSTR uri;
+	LPSTR uri;
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "W", &uri))
+	if(!JS_ConvertArguments(cx, argc, argv, "s", &uri))
 	{
 		JS_ReportError(cx, "Error parsing arguments in g2_load_uri");
 		JS_EndRequest(cx);
@@ -128,13 +130,13 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	}
 	JS_EndRequest(cx);
 
+	nsresult rv;
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	EnterCriticalSection(&mPrivate->mCriticalSection);
-	nsCOMPtr<nsIWebBrowser> mWebBrowser;
-	mPrivate->mChrome->GetWebBrowser(getter_AddRefs(mWebBrowser));
-	nsCOMPtr<nsIWebNavigation> mWebNavigation = do_QueryInterface(mWebBrowser);
-	nsresult result = mWebNavigation->LoadURI((PRUnichar*)uri, nsIWebNavigation::LOAD_FLAGS_NONE, NULL, NULL, NULL);
-	LeaveCriticalSection(&mPrivate->mCriticalSection);
+	nsCOMPtr<nsIWebBrowser> mBrowser;
+	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mBrowser));
+
+	nsCOMPtr<nsIWebNavigation> mWebNavigation = do_QueryInterface(mBrowser);
+	nsresult result = mWebNavigation->LoadURI(NS_ConvertUTF8toUTF16(uri).get(), nsIWebNavigation::LOAD_FLAGS_NONE, NULL, NULL, NULL);
 	*rval = result == NS_OK ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
@@ -142,7 +144,6 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 JSBool g2_destroy(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	EnterCriticalSection(&mPrivate->mCriticalSection);
 	mPrivate->mChrome->DestroyBrowserWindow();
 	nViews--;
 	if(nViews == 0)
@@ -150,19 +151,24 @@ JSBool g2_destroy(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 	return JS_TRUE;
 }
 
+extern JSClass lDOMDocClass;
+extern JSObject * lDOMDocProto;
+
 JSBool g2_get_dom(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	nsCOMPtr<nsIDOMDocument> mDoc;
-	nsCOMPtr<nsIDOMWindow> mDOMWindow = do_GetInterface(static_cast<nsIWebBrowserChrome*>(mPrivate->mChrome));
-	mDOMWindow->GetDocument(getter_AddRefs(mDoc));
 
-	nsCOMPtr<nsIXPConnect>xpc(do_GetService(nsIXPConnect::GetCID()));
-	nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-	xpc->WrapNative(cx, obj, mDoc.get(), nsIDOMDocument::GetIID(), getter_AddRefs(wrapper));
-	JSObject * retObj;
-	wrapper->GetJSObject(&retObj);
+	nsIDOMDocument * mDocument;
+	mPrivate->mDOMWindow->GetDocument(&mDocument);
+	nsIDOMNode * mNode;
+	mDocument->QueryInterface(NS_GET_IID(nsIDOMNode), (void**)&mNode);
+	mDocument->Release();
+
+	JS_BeginRequest(cx);
+	JSObject * retObj = JS_NewObject(cx, &lDOMDocClass, lDOMDocProto, obj);
 	*rval = OBJECT_TO_JSVAL(retObj);
+	JS_SetPrivate(cx, retObj, mNode);
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -176,6 +182,10 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "LoadURI", g2_load_uri, 1, 0 },
 		{ "Destroy", g2_destroy, 0, 0 },
 		{ "GetDOM", g2_get_dom, 0, 0 },
+		{ "RegisterEvent", g2_register_event, 3, 0 },
+		{ "UnregisterEvent", g2_unregister_event, 1, 0 },
+		{ "WaitForStuff", g2_wait_for_stuff, 2, 0 },
+		{ "WaitForThings", g2_wait_for_things, 2, 0 },
 		{ "GetInput", g2_get_input_value, 1, 0 },
 		{ 0 }
 	};
@@ -190,7 +200,9 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 	JS_BeginRequest(cx);
 	GeckoViewProto = JS_InitClass(cx, global, NULL, &GeckoViewClass, NULL, 0, NULL, geckoViewFuncs, NULL, NULL);
 	JS_DefineFunctions(cx, global, geckoFuncs);
+	initDOMNode(cx, global);
 	JS_EndRequest(cx);
+
 	return TRUE;
 }
 

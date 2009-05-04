@@ -8,6 +8,7 @@
 #include "nsEmbedCID.h"
 #include "nsIWebNavigation.h"
 #include "nsMemory.h"
+#include "nsIWidget.h"
 
 LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 ATOM wndClassAtom = 0;
@@ -21,7 +22,7 @@ WebBrowserChrome::WebBrowserChrome()
 	mCurrentLocation = NULL;
 	mChromeFlags = 0;
 }
-
+	
 WebBrowserChrome::~WebBrowserChrome()
 {
 
@@ -35,37 +36,30 @@ NS_IMPL_ISUPPORTS6(WebBrowserChrome,
 				   nsIWebProgressListener,
 				   nsSupportsWeakReference)
 
-nsresult WebBrowserChrome::CreateBrowser(PRInt32 aX, PRInt32 aY, PRInt32 aCX, PRInt32 aCY)
+nsresult WebBrowserChrome::CreateBrowser(HWND nativeWnd)
 {
 	nsresult rv;
 	mWebBrowser = do_CreateInstance(NS_WEBBROWSER_CONTRACTID, &rv);
 	if(NS_FAILED(rv))
 		return NS_ERROR_FAILURE;
 
-	rv = mWebBrowser->SetContainerWindow((nsIWebBrowserChrome*)this);
-	nsCOMPtr<nsIBaseWindow> browserBaseWindow = do_QueryInterface(mWebBrowser);
-
-	RECT windowRect;
-	windowRect.left = aX;
-	windowRect.top = aY;
-	windowRect.right = aX + aCX;
-	windowRect.bottom = aY + aCY;
-	AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
-	mNativeWindow = CreateWindowW(TEXT("NJORD_GECKOEMBED_2"), TEXT("Gecko"), WS_OVERLAPPEDWINDOW, windowRect.left, 
-		windowRect.top,windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, NULL, NULL, GetModuleHandle(NULL), NULL);
-	ShowWindow(mNativeWindow, SW_SHOW);
-	UpdateWindow(mNativeWindow);
-
-	if(!mNativeWindow)
+	AddRef();
+	if(NS_FAILED(mWebBrowser->SetContainerWindow((nsIWebBrowserChrome*)this)))
 		return NS_ERROR_FAILURE;
-	SetWindowLongPtrW(mNativeWindow, GWLP_USERDATA, (LONG_PTR)this);
+	
+	mNativeWindow = nativeWnd;
+	RECT area;
+	GetClientRect(mNativeWindow, &area);
+	nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mWebBrowser);
+	if(NS_FAILED(baseWindow->InitWindow(mNativeWindow, NULL, area.left, area.top, area.right - area.left, area.bottom - area.top)))
+		return NS_ERROR_FAILURE;
+	if(NS_FAILED(baseWindow->Create()))
+		return NS_ERROR_FAILURE;
+	baseWindow->SetVisibility(PR_TRUE);
 
-	rv = browserBaseWindow->InitWindow(mNativeWindow, nsnull, windowRect.left, windowRect.top, 
-		windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
-	rv = browserBaseWindow->Create();
-	nsCOMPtr<nsIWebProgressListener> listener(static_cast<nsIWebProgressListener*>(this));
-	nsCOMPtr<nsIWeakReference> thisListener(do_GetWeakReference(listener));
-	rv = mWebBrowser->AddWebBrowserListener(thisListener, NS_GET_IID(nsIWebProgressListener));
+	nsWeakPtr weakling(dont_AddRef(NS_GetWeakReference(static_cast<nsIWebProgressListener*>(this))));
+	if(NS_FAILED(mWebBrowser->AddWebBrowserListener(weakling, NS_GET_IID(nsIWebProgressListener))))
+		return NS_ERROR_FAILURE;
 
 	return NS_OK;
 }
@@ -120,18 +114,24 @@ NS_IMETHODIMP WebBrowserChrome::DestroyBrowserWindow()
 {
 	if(mContinueModalLoop)
 		mContinueModalLoop = PR_FALSE;
-	DestroyWindow(mNativeWindow);
+	SendMessage(mNativeWindow, WM_DESTROY, 0, 0);
 	return NS_OK;
 }
 
 NS_IMETHODIMP WebBrowserChrome::SizeBrowserTo(PRInt32 aCX, PRInt32 aCY)
 {
-	RECT rect;
-	GetWindowRect(mNativeWindow, &rect);
-	rect.bottom = rect.top + aCY;
-	rect.right = rect.left + aCX;
-	AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
-	SetWindowPos(mNativeWindow, NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER);
+	nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mWebBrowser);
+	nsCOMPtr<nsIWidget> gWidget;
+	baseWindow->GetMainWidget(getter_AddRefs(gWidget));
+	HWND viewWnd = (HWND)gWidget->GetNativeData(NS_NATIVE_WINDOW);
+	
+	RECT rect, parentRect;
+	GetWindowRect(mNativeWindow, &parentRect);
+	GetWindowRect(viewWnd, &rect);
+	SetWindowPos(mNativeWindow, NULL, 0, 0, 
+		aCX + (parentRect.right - parentRect.left) - (rect.right - rect.left),
+		aCY + (parentRect.bottom - parentRect.top) - (rect.bottom - rect.top),
+		SWP_NOMOVE | SWP_NOZORDER);
 	return NS_OK;
 }
 
@@ -235,37 +235,61 @@ NS_IMETHODIMP WebBrowserChrome::SetDimensions(PRUint32 flags,
                                               PRInt32 aX, PRInt32 aY,
                                               PRInt32 aCx, PRInt32 aCy)
 {
-	RECT rect;
+	RECT newPos;
 	UINT swpFlags = SWP_NOZORDER;
-	if(!(flags & nsIEmbeddingSiteWindow::DIM_FLAGS_POSITION))
+
+	GetWindowRect(mNativeWindow, &newPos);
+	if(flags & nsIEmbeddingSiteWindow::DIM_FLAGS_POSITION)
 	{
-		aX = 0;
-		aY = 0;
-		swpFlags |= SWP_NOMOVE;
+		newPos.left = aX;
+		newPos.top = aY;
 	}
-	rect.top = aY;
-	rect.bottom = aY + aCy;
-	rect.left = aX;
-	rect.right = aX + aCx;
-	AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
-	SetWindowPos(mNativeWindow, NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, swpFlags);
-    mSizeSet = PR_TRUE;
-    return NS_OK;
+	else
+		swpFlags |= SWP_NOMOVE;
+	if(flags & (nsIEmbeddingSiteWindow::DIM_FLAGS_SIZE_INNER 
+		| nsIEmbeddingSiteWindow::DIM_FLAGS_SIZE_OUTER))
+	{
+		newPos.bottom = newPos.top + aCy;
+		newPos.right = newPos.left + aCx;
+		if(flags & nsIEmbeddingSiteWindow::DIM_FLAGS_SIZE_INNER)
+			AdjustWindowRect(&newPos, WS_OVERLAPPEDWINDOW, FALSE);
+	}
+	if(SetWindowPos(mNativeWindow, NULL, newPos.left, newPos.top, newPos.right - newPos.left, newPos.bottom - newPos.top, swpFlags))
+	{
+		mSizeSet = PR_TRUE;
+		return NS_OK;
+	}
+	return NS_ERROR_UNEXPECTED;
 }
 
-NS_IMETHODIMP WebBrowserChrome::GetDimensions(PRUint32 /*aFlags*/,
-                                              PRInt32 * /*aX*/, PRInt32 * /*aY*/,
-                                              PRInt32 * /*aCx*/, PRInt32 * /*aCy*/)
+NS_IMETHODIMP WebBrowserChrome::GetDimensions(PRUint32 flags,
+                                              PRInt32 * X, PRInt32 * Y,
+                                              PRInt32 * cX, PRInt32 * cY)
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+	RECT wndRect;
+	if(!GetWindowRect(mNativeWindow, &wndRect))
+		return NS_ERROR_UNEXPECTED;
+	if(flags & nsIEmbeddingSiteWindow::DIM_FLAGS_POSITION)
+	{
+		*X = wndRect.left;
+		*Y = wndRect.top;
+	}
+	if(flags & nsIEmbeddingSiteWindow::DIM_FLAGS_SIZE_OUTER)
+	{
+		*cX = wndRect.right - wndRect.left;
+		*cY = wndRect.bottom - wndRect.top;
+	}
+    return NS_OK;
 }
 
 NS_IMETHODIMP WebBrowserChrome::SetFocus()
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+	::SetForegroundWindow(mNativeWindow);
+	::SetFocus(mNativeWindow);
+    return NS_OK;
 }
 
-NS_IMETHODIMP WebBrowserChrome::GetVisibility(PRBool * /*aVisibility*/)
+NS_IMETHODIMP WebBrowserChrome::GetVisibility(PRBool * aVisibility)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
