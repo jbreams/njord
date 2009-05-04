@@ -22,10 +22,14 @@
 #include "webbrowserchrome.h"
 #include "privatedata.h"
 
+enum { NAME_PROP, TAGNAME_PROP, VALUE_PROP, PARENTNODE_PROP, FIRSTCHILD_PROP, LASTCHILD_PROP, PREVIOUSSIBLING_PROP, NEXTSIBLING_PROP, CHILDREN_PROP };
+
+JSObject * lDOMNodeProto;
 void finalizeElement(JSContext * cx, JSObject * obj)
 {
 	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	mNode->Release();
+	if(mNode != NULL)
+		mNode->Release();
 }
 
 JSClass lDOMNodeClass  = {
@@ -35,7 +39,6 @@ JSClass lDOMNodeClass  = {
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, finalizeElement,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
-JSObject * lDOMNodeProto;
 
 JSBool buildNodeList(nsIDOMNodeList * nodeList, JSContext * cx, JSObject * parent, jsval * rval)
 {
@@ -61,7 +64,7 @@ JSBool buildNodeList(nsIDOMNodeList * nodeList, JSContext * cx, JSObject * paren
 JSBool setAttribute(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JS_BeginRequest(cx);
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMNode> mNode = (nsCOMPtr<nsIDOMNode>)JS_GetPrivate(cx, obj);
 	nsIDOMElement * mElement = NULL;
 	mNode->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)&mElement);
 	if(mElement == NULL)
@@ -144,15 +147,13 @@ JSBool stringPropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 	nsIDOMElement * mElement = NULL;
 	mNode->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)&mElement);
-	JSString * idvalStr = JS_ValueToString(cx, idval);
-	jschar * idvalChars = JS_GetStringChars(idvalStr);
 
 	nsString value;
-	if(wcscmp(idvalChars, TEXT("name")) == 0)
+	if(idval == 1)
 		mNode->GetNodeName(value);
-	else if(wcscmp(idvalChars, TEXT("value")) == 0)
+	else if(idval == 3)
 		mNode->GetNodeValue(value);
-	if(wcscmp(idvalChars, TEXT("tagname")) == 0)
+	else if(idval == 2)
 	{
 		if(mElement)
 			mElement->GetTagName(value);
@@ -175,14 +176,17 @@ JSBool stringPropSetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 {
 	JS_BeginRequest(cx);
 	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	JSString * idvalStr = JS_ValueToString(cx, idval);
-	jschar * idvalChars = JS_GetStringChars(idvalStr);
 	JSString * valStr = JS_ValueToString(cx, *vp);
 	jschar * valChars = JS_GetStringChars(valStr);
 
 	nsString value;
-	if(wcscmp(idvalChars, TEXT("value")) == 0)
-		mNode->SetNodeValue(nsDependentString(valChars));
+	nsresult result;
+	switch(JSVAL_TO_INT(idval))
+	{
+	case 3:
+		result = mNode->SetNodeValue(nsDependentString(valChars));
+		break;
+	}
 	JS_EndRequest(cx);
 
 	return JS_TRUE;
@@ -224,26 +228,25 @@ JSBool nodePropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 {
 	JS_BeginRequest(cx);
 	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	JSString * idvalStr = JS_ValueToString(cx, idval);
-	jschar * idvalChars = JS_GetStringChars(idvalStr);
-
+	idval = JSVAL_TO_INT(idval);
 	nsIDOMNode * retNode = NULL;
 
-	if(_wcsicmp(idvalChars, TEXT("parentNode")) == 0)
+	if(idval == 4)
 		mNode->GetParentNode(&retNode);
-	else if(_wcsicmp(idvalChars, TEXT("firstChild")) == 0)
+	else if(idval == 5)
 		mNode->GetFirstChild(&retNode);
-	else if(_wcsicmp(idvalChars, TEXT("lastChild")) == 0)
+	else if(idval == 6)
 		mNode->GetLastChild(&retNode);
-	else if(_wcsicmp(idvalChars, TEXT("previousSibling")) == 0)
+	else if(idval == 7)
 		mNode->GetPreviousSibling(&retNode);
-	else if(_wcsicmp(idvalChars, TEXT("nextSibling")) == 0)
+	else if(idval == 8)
 		mNode->GetNextSibling(&retNode);
 
 	if(retNode == NULL)
 		*vp = JSVAL_NULL;
 	else
 	{
+		retNode->AddRef();
 		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
 		*vp = OBJECT_TO_JSVAL(retObj);
 		JS_SetPrivate(cx, retObj, retNode);
@@ -567,16 +570,18 @@ JSBool initDOMNode(JSContext * cx, JSObject * global)
 		{ 0 }
 	};
 
+	BYTE readOnlyProp = JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT;
+
 	JSPropertySpec nodeProps[] = {
-		{ "name", 0, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED, stringPropGetter, NULL },
-		{ "tagName", 0, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED, stringPropGetter, NULL },
-		{ "value", 0, JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_SHARED, stringPropGetter, stringPropSetter},
-		{ "parentNode", 0, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED, nodePropGetter, NULL },
-		{ "firstChild", 0, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED, nodePropGetter, NULL },
-		{ "lastChild", 0, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED, nodePropGetter, NULL },
-		{ "previousSibling", 0, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED, nodePropGetter, NULL },
-		{ "nextSibling", 0, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED, nodePropGetter, NULL },
-		{ "children", 0, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED, childGetter, NULL },
+		{ "name", NAME_PROP, readOnlyProp, stringPropGetter, NULL },
+		{ "tagName", TAGNAME_PROP, readOnlyProp, stringPropGetter, NULL },
+		{ "value", VALUE_PROP, JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_SHARED, stringPropGetter, stringPropSetter},
+		{ "parentNode", PARENTNODE_PROP, readOnlyProp, nodePropGetter, NULL },
+		{ "firstChild", FIRSTCHILD_PROP, readOnlyProp, nodePropGetter, NULL },
+		{ "lastChild", LASTCHILD_PROP, readOnlyProp, nodePropGetter, NULL },
+		{ "previousSibling", PREVIOUSSIBLING_PROP, readOnlyProp, nodePropGetter, NULL },
+		{ "nextSibling", NEXTSIBLING_PROP, readOnlyProp, nodePropGetter, NULL },
+		{ "children", CHILDREN_PROP, readOnlyProp, childGetter, NULL },
 		{ 0 }
 	};
 
