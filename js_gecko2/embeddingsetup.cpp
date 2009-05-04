@@ -95,7 +95,7 @@ MozEmbedDirectoryProvider::GetFiles(const char *aKey,
     return dp2->GetFiles(aKey, aResult);
 }
 
-BOOL InitGRE(char * aProfilePath)
+BOOL InitGRE(char * aProfilePath, LPSTR pathToGRE)
 {
     nsresult rv;
 
@@ -117,12 +117,10 @@ BOOL InitGRE(char * aProfilePath)
     string xpcomPath(temp);
     cout << "xpcom: " << xpcomPath << endl;
 
-    if (NS_FAILED(rv)) {
-		return FALSE;
-    }
-
-    // start the glue, i.e. load and link against xpcom shared lib
-    rv = XPCOMGlueStartup(xpcomPath.c_str());
+	if(NS_FAILED(rv))
+		rv = XPCOMGlueStartup(pathToGRE);
+	else
+		rv = XPCOMGlueStartup(xpcomPath.c_str());
     if (NS_FAILED(rv)) {
 		return FALSE;
     }

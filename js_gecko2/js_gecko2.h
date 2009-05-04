@@ -18,5 +18,5 @@ JSBool g2_register_event(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 JSBool g2_unregister_event(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval);
 JSBool g2_get_input_value(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval);
 DWORD UiThread(LPVOID lpParam);
-BOOL InitGRE(char * aProfilePath);
+BOOL InitGRE(char * aProfilePath, LPSTR pathToGRE);
 JSBool initDOMNode(JSContext * cx, JSObject * global);

@@ -91,7 +91,7 @@ DWORD UiThread(LPVOID lpParam)
 	wc.lpszClassName = TEXT("NJORD_GECKOEMBED_2");
 	RegisterClass(&wc);
 
-	if(!InitGRE(NULL))
+	if(!InitGRE(NULL, (LPSTR)lpParam))
 		return 1;
 
 	InterlockedIncrement(&ThreadInitialized);
@@ -137,7 +137,15 @@ DWORD UiThread(LPVOID lpParam)
 JSBool g2_init(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	keepUIGoing = TRUE;
-	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)UiThread, NULL, 0, NULL);
+	LPSTR pathToGRE;
+	JS_BeginRequest(cx);
+	if(!JS_ConvertArguments(cx, argc, argv, "/s", &pathToGRE))
+	{
+		JS_ReportError(cx, "Error parsing arguments in g2_init");
+		JS_EndRequest(cx);
+		return JS_FALSE;
+	}
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)UiThread, pathToGRE, 0, NULL);
 	LONG stillWaiting = 1;
 	while(stillWaiting)
 	{
