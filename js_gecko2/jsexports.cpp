@@ -52,7 +52,6 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 
 	if(!JS_ConvertArguments(cx, argc, argv, "c c", &cX, &cY))
 	{
-		JS_ReportWarning(cx, "No dimensions specified for creating the view. Defaulting.");
 		cX = 800;
 		cY = 600;
 	}
