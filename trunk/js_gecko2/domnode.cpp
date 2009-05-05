@@ -22,7 +22,7 @@
 #include "webbrowserchrome.h"
 #include "privatedata.h"
 
-enum { NAME_PROP, TAGNAME_PROP, VALUE_PROP, PARENTNODE_PROP, FIRSTCHILD_PROP, LASTCHILD_PROP, PREVIOUSSIBLING_PROP, NEXTSIBLING_PROP, CHILDREN_PROP };
+enum { NAME_PROP, TAGNAME_PROP, VALUE_PROP, PARENTNODE_PROP, FIRSTCHILD_PROP, LASTCHILD_PROP, PREVIOUSSIBLING_PROP, NEXTSIBLING_PROP, CHILDREN_PROP, TEXT_PROP };
 
 JSObject * lDOMNodeProto;
 void finalizeElement(JSContext * cx, JSObject * obj)
@@ -64,7 +64,7 @@ JSBool buildNodeList(nsIDOMNodeList * nodeList, JSContext * cx, JSObject * paren
 JSBool setAttribute(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JS_BeginRequest(cx);
-	nsCOMPtr<nsIDOMNode> mNode = (nsCOMPtr<nsIDOMNode>)JS_GetPrivate(cx, obj);
+	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 	nsIDOMElement * mElement = NULL;
 	mNode->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)&mElement);
 	if(mElement == NULL)
@@ -149,11 +149,11 @@ JSBool stringPropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 	mNode->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)&mElement);
 
 	nsString value;
-	if(idval == 1)
+	if(idval == NAME_PROP)
 		mNode->GetNodeName(value);
-	else if(idval == 3)
+	else if(idval == VALUE_PROP)
 		mNode->GetNodeValue(value);
-	else if(idval == 2)
+	else if(idval == TAGNAME_PROP)
 	{
 		if(mElement)
 			mElement->GetTagName(value);
@@ -231,15 +231,15 @@ JSBool nodePropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 	idval = JSVAL_TO_INT(idval);
 	nsIDOMNode * retNode = NULL;
 
-	if(idval == 4)
+	if(idval == PARENTNODE_PROP)
 		mNode->GetParentNode(&retNode);
-	else if(idval == 5)
+	else if(idval == FIRSTCHILD_PROP)
 		mNode->GetFirstChild(&retNode);
-	else if(idval == 6)
+	else if(idval == LASTCHILD_PROP)
 		mNode->GetLastChild(&retNode);
-	else if(idval == 7)
+	else if(idval == PREVIOUSSIBLING_PROP)
 		mNode->GetPreviousSibling(&retNode);
-	else if(idval == 8)
+	else if(idval == NEXTSIBLING_PROP)
 		mNode->GetNextSibling(&retNode);
 
 	if(retNode == NULL)
@@ -373,6 +373,81 @@ JSBool removeChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	else
 		*rval = JSVAL_FALSE;
 	JS_EndRequest(cx);
+	return JS_TRUE;
+}
+
+JSBool getElementText(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
+{
+	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsIDOMNodeList * children;
+	mNode->GetChildNodes(&children);
+	PRUint32 nChildren;
+	children->GetLength(&nChildren);
+	
+	LPWSTR retString = (LPWSTR)JS_malloc(cx, (512 * sizeof(WCHAR)));
+	memset(retString, 0, sizeof(WCHAR) * 512);
+	DWORD retSCLength = 512;
+	for(PRUint32 i = 0; i < nChildren; i++)
+	{
+		nsIDOMNode * curChild;
+		children->Item(i, &curChild);
+		
+		PRUint16 type;
+		curChild->GetNodeType(&type);
+		if(type != nsIDOMNode::TEXT_NODE)
+			continue;
+
+		nsString curString;
+		curChild->GetNodeValue(curString);
+		if((wcslen(retString) + curString.Length() + 1) > retSCLength)
+		{
+			retSCLength += 128;
+			retString = (LPWSTR)JS_realloc(cx, retString, retSCLength * sizeof(WCHAR));
+		}
+		wcscat_s(retString, retSCLength - wcslen(retString), curString.get());
+		curChild->Release();
+	}
+	children->Release();
+
+	JS_BeginRequest(cx);
+	JSString * retJSString = JS_NewUCString(cx, retString, wcslen(retString));
+	*vp = STRING_TO_JSVAL(retJSString);
+	JS_EndRequest(cx);
+	return JS_TRUE;
+}
+
+JSBool setElementText(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
+{
+	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsIDOMNodeList * children;
+	mNode->GetChildNodes(&children);
+	PRUint32 nChildren;
+	children->GetLength(&nChildren);
+
+	for(PRUint32 i = 0; i < nChildren; i++)
+	{
+		nsIDOMNode * curChild;
+		children->Item(i, &curChild);
+		PRUint16 curType;
+		curChild->GetNodeType(&curType);
+		if(curType == nsIDOMNode::TEXT_NODE)
+			mNode->RemoveChild(curChild, &curChild);
+		curChild->Release();
+	}
+	children->Release();
+
+	JSString * newValue = JS_ValueToString(cx, *vp);
+	nsCOMPtr<nsIDOMText> nNode;
+
+	nsIDOMDocument *mDoc;
+	mNode->GetOwnerDocument(&mDoc);
+	mDoc->CreateTextNode(nsDependentString((LPWSTR)JS_GetStringChars(newValue)), getter_AddRefs(nNode));
+	mDoc->Release();
+
+	nsCOMPtr<nsIDOMNode> newNode = do_QueryInterface(nNode);
+	nsCOMPtr<nsIDOMNode> outNode;
+	if(mNode->AppendChild(newNode, getter_AddRefs(outNode)) != NS_OK)
+		*vp = JSVAL_NULL;
 	return JS_TRUE;
 }
 
@@ -582,6 +657,7 @@ JSBool initDOMNode(JSContext * cx, JSObject * global)
 		{ "previousSibling", PREVIOUSSIBLING_PROP, readOnlyProp, nodePropGetter, NULL },
 		{ "nextSibling", NEXTSIBLING_PROP, readOnlyProp, nodePropGetter, NULL },
 		{ "children", CHILDREN_PROP, readOnlyProp, childGetter, NULL },
+		{ "text", TEXT_PROP, JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_SHARED, getElementText, setElementText },
 		{ 0 }
 	};
 

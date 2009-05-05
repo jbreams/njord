@@ -245,8 +245,8 @@ JSBool g2_wait_for_things(JSContext * cx, JSObject * obj, uintN argc, jsval * ar
 	DWORD waitResult = WaitForMultipleObjects(eventIter, eventsToWaitFor, waitForAll, timeOut);
 	for(DWORD j = 0; j < eventIter; j++)
 	{
-		CloseHandle(eventsToWaitFor[j]);
 		ResetEvent(eventsToWaitFor[j]);
+		CloseHandle(eventsToWaitFor[j]);
 	}
 
 	if(!waitForAll)
@@ -279,9 +279,10 @@ JSBool g2_wait_for_things(JSContext * cx, JSObject * obj, uintN argc, jsval * ar
 JSBool g2_unregister_event(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	LPTSTR domEvent = NULL;
+	JSObject * targetObject;
 
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "/W", &domEvent))
+	if(!JS_ConvertArguments(cx, argc, argv, "/o W", &domEvent))
 	{
 		JS_ReportError(cx, "Error parsing arguments in registerevent.");
 		JS_EndRequest(cx);

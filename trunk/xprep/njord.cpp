@@ -91,5 +91,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	JS_DestroyContext(cx);
 	JS_DestroyRuntime(rt);
 	JS_ShutDown();
+//	Cleanup();
 	return 0;
 }

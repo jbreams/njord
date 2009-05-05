@@ -206,13 +206,16 @@ JSBool win32_getcurrentdirectory(JSContext * cx, JSObject * obj, uintN argc, jsv
 
 JSBool win32_setdlldirectory(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	if(argc < 1)
 	{
 		JS_ReportError(cx, "Must pass a path to SetDllDirectory.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 	JSString * str = JS_ValueToString(cx, *argv);
 	*rval = SetDllDirectory((LPWSTR)JS_GetStringChars(str)) ? JSVAL_TRUE : JSVAL_FALSE;
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 

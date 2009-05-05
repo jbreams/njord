@@ -13,9 +13,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_hotkey", "js_hotkey\js_h
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_gecko2", "js_gecko2\js_gecko2.vcproj", "{A10013D7-B505-4EB5-A524-1841BBBA97EB}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_wimg", "..\Visual Studio 2008\Projects\js_wimg\js_wimg\js_wimg.vcproj", "{5351A17D-795C-4A83-8465-2858B297603F}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_wmi", "js_wmi\js_wmi.vcproj", "{60BCE6CC-E6FC-43DB-B850-1AA0897D8EF2}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_wimg", "js_wimg\js_wimg.vcproj", "{5351A17D-795C-4A83-8465-2858B297603F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -47,14 +47,14 @@ Global
 		{A10013D7-B505-4EB5-A524-1841BBBA97EB}.Debug|Win32.Build.0 = Debug|Win32
 		{A10013D7-B505-4EB5-A524-1841BBBA97EB}.Release|Win32.ActiveCfg = Release|Win32
 		{A10013D7-B505-4EB5-A524-1841BBBA97EB}.Release|Win32.Build.0 = Release|Win32
-		{5351A17D-795C-4A83-8465-2858B297603F}.Debug|Win32.ActiveCfg = Debug|Win32
-		{5351A17D-795C-4A83-8465-2858B297603F}.Debug|Win32.Build.0 = Debug|Win32
-		{5351A17D-795C-4A83-8465-2858B297603F}.Release|Win32.ActiveCfg = Release|Win32
-		{5351A17D-795C-4A83-8465-2858B297603F}.Release|Win32.Build.0 = Release|Win32
 		{60BCE6CC-E6FC-43DB-B850-1AA0897D8EF2}.Debug|Win32.ActiveCfg = Debug|Win32
 		{60BCE6CC-E6FC-43DB-B850-1AA0897D8EF2}.Debug|Win32.Build.0 = Debug|Win32
 		{60BCE6CC-E6FC-43DB-B850-1AA0897D8EF2}.Release|Win32.ActiveCfg = Release|Win32
 		{60BCE6CC-E6FC-43DB-B850-1AA0897D8EF2}.Release|Win32.Build.0 = Release|Win32
+		{5351A17D-795C-4A83-8465-2858B297603F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5351A17D-795C-4A83-8465-2858B297603F}.Debug|Win32.Build.0 = Debug|Win32
+		{5351A17D-795C-4A83-8465-2858B297603F}.Release|Win32.ActiveCfg = Release|Win32
+		{5351A17D-795C-4A83-8465-2858B297603F}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
