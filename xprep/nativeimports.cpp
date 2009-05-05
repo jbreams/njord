@@ -126,13 +126,27 @@ JSBool xprep_unload_all_native(JSContext * cx, JSObject * obj, uintN argc, jsval
 		if(cleanupRoutines[i].ceFn == NULL)
 			continue;
 		cleanupRoutines[i].ceFn(cx, obj);
-		FreeLibrary(cleanupRoutines[i].libHandle);
+	//	FreeLibrary(cleanupRoutines[i].libHandle);
 		free(cleanupRoutines[i].libName);
 	}
 	jsExtCount = 0;
 	HeapFree(GetProcessHeap(), 0, cleanupRoutines);
 	cleanupRoutines = NULL;
 	return JS_TRUE;
+}
+
+void Cleanup()
+{
+	for(WORD i = 0; i < jsExtCount; i++)
+	{
+		if(cleanupRoutines[i].ceFn == NULL)
+			continue;
+		cleanupRoutines[i].ceFn(NULL, NULL);
+		free(cleanupRoutines[i].libName);
+	}
+	jsExtCount = 0;
+	HeapFree(GetProcessHeap(), 0, cleanupRoutines);
+	cleanupRoutines = NULL;
 }
 
 JSBool load_js_lib(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)

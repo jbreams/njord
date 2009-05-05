@@ -257,3 +257,32 @@ JSBool g2_term(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *
 	DeleteCriticalSection(&viewsLock);
     return JS_TRUE;
 }
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
+{
+	keepUIGoing = FALSE;
+	if(!XRE_TermEmbedding)
+	{
+		JS_ReportError(cx, "XRE_TermEmbedding isn't defined!");
+		return FALSE;
+	}
+
+	XRE_TermEmbedding();
+	NS_IF_RELEASE(sProfileLock);
+
+	if(NS_FAILED(XPCOMGlueShutdown()))
+	{
+		JS_ReportError(cx, "XRE_Termembedding failed!");
+		return FALSE;
+	}
+	NS_LogTerm();
+	DeleteCriticalSection(&viewsLock);
+	return TRUE;
+}
+#ifdef __cplusplus
+}
+#endif

@@ -204,11 +204,12 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 
 	return TRUE;
 }
-
+/*
 BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
 {
 	return TRUE;
 }
+*/
 #ifdef __cplusplus
 }
 #endif

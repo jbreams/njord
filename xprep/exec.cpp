@@ -52,15 +52,16 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	if(!JS_ConvertArguments(cx, argc, argv, "S /b b b b", &jsCmdLine, &jsWait, &jsHide, &jsBatch, &jsCapture))
 	{
 		JS_ReportError(cx, "Error parsing arguments in js_exec");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
 	if(JS_GetStringLength(jsCmdLine) == 0)
 	{
 		JS_ReportError(cx, "exec called with a blank commandline.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
-	jsrefcount rCount = JS_SuspendRequest(cx);
 
 	LPWSTR appName = NULL;
 	HANDLE stdOutRead = NULL, stdOutWrite = NULL, stdErrorRead = NULL, stdErrorWrite = NULL, threadHandles[3];
@@ -112,11 +113,11 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
 		*rval = JSVAL_TRUE;
-		JS_ResumeRequest(cx, rCount);
 		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 
+	jsrefcount rCount = JS_SuspendRequest(cx);
 	if(jsCapture == TRUE)
 	{
 		outReader->stopEvent = pi.hProcess;
