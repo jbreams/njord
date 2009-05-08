@@ -267,10 +267,6 @@
 				RelativePath=".\xprep.ico"
 				>
 			</File>
-			<File
-				RelativePath=".\xprep.rc"
-				>
-			</File>
 		</Filter>
 		<File
 			RelativePath=".\ReadMe.txt"

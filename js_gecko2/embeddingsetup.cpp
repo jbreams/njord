@@ -12,16 +12,17 @@ using namespace std;
 #include "nsProfileDirServiceProvider.h"
 
 #include "nsILocalFile.h"
-
+/*
 XRE_InitEmbeddingType XRE_InitEmbedding = 0;
 XRE_TermEmbeddingType XRE_TermEmbedding = 0;
 XRE_NotifyProfileType XRE_NotifyProfile = 0;
 XRE_LockProfileDirectoryType XRE_LockProfileDirectory = 0;
+*/
 extern CRITICAL_SECTION viewsLock;
 extern BOOL keepUIGoing;
 
 static int gInitCount = 0;
-
+/*
 // ------------------------------------------------------------------------
 
 nsIDirectoryServiceProvider *sAppFileLocProvider = 0;
@@ -218,45 +219,9 @@ BOOL InitGRE(char * aProfilePath, LPSTR pathToGRE)
 	InitializeCriticalSection(&viewsLock);
 	return TRUE;
 }
+*/
 
-JSBool g2_term(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
-{
-    --gInitCount;
-    if (gInitCount > 0)
-        return JS_TRUE;
 
-	keepUIGoing = FALSE;
-
-    nsresult rv;
-
-    // get rid of the bogus TLS warnings
-    NS_LogInit();
-
-    // terminate embedding
-    if (!XRE_TermEmbedding) {
-		*rval = JSVAL_FALSE;
-        cerr << "XRE_TermEmbedding not set." << endl;
-        return JS_TRUE;
-    }
-
-    XRE_TermEmbedding();
-
-    // make sure this is freed before shutting down xpcom
-    NS_IF_RELEASE(sProfileLock);
-    sProfileDir = 0;
-
-    // shutdown xpcom
-    rv = XPCOMGlueShutdown();
-    if (NS_FAILED(rv)) {
-		*rval = JSVAL_FALSE;
-        cerr << "Could not shutdown XPCOM glue." << endl;
-        return JS_TRUE;
-    }
-
-    NS_LogTerm();
-	DeleteCriticalSection(&viewsLock);
-    return JS_TRUE;
-}
 
 #ifdef __cplusplus
 extern "C" {
@@ -264,23 +229,11 @@ extern "C" {
 
 BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
 {
-	keepUIGoing = FALSE;
-	if(!XRE_TermEmbedding)
-	{
-		JS_ReportError(cx, "XRE_TermEmbedding isn't defined!");
-		return FALSE;
-	}
-
-	XRE_TermEmbedding();
-	NS_IF_RELEASE(sProfileLock);
-
 	if(NS_FAILED(XPCOMGlueShutdown()))
 	{
 		JS_ReportError(cx, "XRE_Termembedding failed!");
 		return FALSE;
 	}
-	NS_LogTerm();
-	DeleteCriticalSection(&viewsLock);
 	return TRUE;
 }
 #ifdef __cplusplus

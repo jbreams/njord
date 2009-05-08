@@ -28,6 +28,7 @@ public:
 		InitializeCriticalSection(&eventHeadLock);
 		eventRegCount = 0;
 		eventHead = NULL;
+		allowClose = FALSE;
 	}
 	~PrivateData()
 	{
@@ -38,6 +39,8 @@ public:
 	DOMEventListener * mDOMListener;
 	RECT requestedRect;
 	BOOL initialized;
+	BOOL allowClose;
+	BOOL destroying;
 	HWND mNativeWindow;
 	nsCOMPtr<nsIWebBrowser> mBrowser;
 	nsCOMPtr<nsIDOMWindow> mDOMWindow;

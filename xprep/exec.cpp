@@ -20,6 +20,7 @@ DWORD APIENTRY ExecPipeReader(LPVOID param)
 	pri->used = 0;
 	BOOL running = TRUE;
 	DWORD toRead = 0;
+	Sleep(500);
 	while(running)
 	{
 		if(toRead > 0)
@@ -34,7 +35,7 @@ DWORD APIENTRY ExecPipeReader(LPVOID param)
 		}
 		
 		PeekNamedPipe(pri->pipeToRead, NULL, 0, NULL, &toRead, NULL);
-		if(WaitForSingleObject(pri->stopEvent, 100) == WAIT_OBJECT_0)
+		if(WaitForSingleObject(pri->stopEvent, 500) == WAIT_OBJECT_0)
 		{
 			if(toRead == 0)
 				running = FALSE;

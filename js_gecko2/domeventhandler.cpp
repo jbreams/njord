@@ -279,7 +279,6 @@ JSBool g2_wait_for_things(JSContext * cx, JSObject * obj, uintN argc, jsval * ar
 JSBool g2_unregister_event(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	LPTSTR domEvent = NULL;
-	JSObject * targetObject;
 
 	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "/o W", &domEvent))
@@ -323,4 +322,20 @@ JSBool g2_unregister_event(JSContext * cx, JSObject * obj, uintN argc, jsval * a
 	}
 	LeaveCriticalSection(&mPrivate->eventHeadLock);
 	return JS_TRUE;
+}
+
+void UnregisterEvents(PrivateData * mPrivate)
+{
+	EnterCriticalSection(&mPrivate->eventHeadLock);
+	EventRegistration * curReg = mPrivate->eventHead;
+	while(curReg != NULL)
+	{
+		SetEvent(curReg->windowsEvent);
+		EventRegistration * nextReg = curReg->next;
+		delete curReg;
+		curReg = nextReg;
+	}
+	mPrivate->eventHead = NULL;
+	mPrivate->eventRegCount = 0;
+	LeaveCriticalSection(&mPrivate->eventHeadLock);
 }

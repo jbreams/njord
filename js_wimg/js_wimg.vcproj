@@ -118,7 +118,7 @@
 				EnableIntrinsicFunctions="true"
 				AdditionalIncludeDirectories="c:\js\src"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;JS_WIMG_EXPORTS"
-				RuntimeLibrary="2"
+				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="2"
 				WarningLevel="3"
@@ -195,6 +195,10 @@
 						CompileAsManaged="0"
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\exceptions.cpp"
+				>
 			</File>
 			<File
 				RelativePath=".\js_wimg.cpp"
