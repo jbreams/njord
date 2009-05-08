@@ -10,9 +10,6 @@
 #include "nsMemory.h"
 #include "nsIWidget.h"
 
-LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-ATOM wndClassAtom = 0;
-
 WebBrowserChrome::WebBrowserChrome()
 {
 	mNativeWindow = NULL;
@@ -322,10 +319,11 @@ NS_IMETHODIMP WebBrowserChrome::GetSiteWindow(void * *aSiteWindow)
 
 NS_IMETHODIMP WebBrowserChrome::FocusNextElement()
 {
-    return NS_OK;
+	return NS_ERROR_NOT_IMPLEMENTED;
+//    return NS_OK;
 }
 
 NS_IMETHODIMP WebBrowserChrome::FocusPrevElement()
 {
-    return NS_OK;
+	return NS_ERROR_NOT_IMPLEMENTED;
 }

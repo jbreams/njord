@@ -108,16 +108,17 @@ JSBool fs_write_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	if(hFile == NULL)
 	{
 		JS_ReportError(cx, "File not opened, cannot read.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
 	if(!JS_ConvertArguments(cx, argc, argv, "S /b b", &strToWrite, &unicode, &closeOnWrite))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in fs_write_file.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
-	jsrefcount rCount = JS_SuspendRequest(cx);
 	LPBYTE toWrite = (LPBYTE)JS_GetStringChars(strToWrite);
 	DWORD toWriteLen = JS_GetStringLength(strToWrite) * sizeof(jschar), actualWrite;
 	if(unicode == JS_FALSE)
@@ -136,7 +137,6 @@ JSBool fs_write_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	else
 		actualWrite /= sizeof(jschar);
 
-	JS_ResumeRequest(cx, rCount);	
 	jsval lastWriteVal;
 	JS_NewNumberValue(cx, actualWrite, &lastWriteVal);
 	JS_SetProperty(cx, obj, "lastWriteBytes", &lastWriteVal);
@@ -151,15 +151,18 @@ JSBool fs_write_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 }
 JSBool fs_close_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	HANDLE hFile = JS_GetPrivate(cx, obj);
 	if(hFile == NULL)
 	{
 		JS_ReportError(cx, "File not opened, cannot read.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
 	CloseHandle(hFile);
 	JS_SetPrivate(cx, obj, NULL);
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 

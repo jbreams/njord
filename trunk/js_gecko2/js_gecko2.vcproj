@@ -119,7 +119,7 @@
 				EnableIntrinsicFunctions="true"
 				AdditionalIncludeDirectories="..\spidermonkey\include;&quot;..\xulrunner-sdk\include\docshell&quot;;&quot;..\xulrunner-sdk\include\xulapp&quot;;&quot;..\xulrunner-sdk\include\necko&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\widget&quot;;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\pref&quot;;&quot;..\xulrunner-sdk\include\gfx&quot;;&quot;..\xulrunner-sdk\include\embed_base&quot;;&quot;..\xulrunner-sdk\include\webbrwsr&quot;;&quot;..\xulrunner-sdk\include\xpconnect&quot;;&quot;..\xulrunner-sdk\include\profdirserviceprovider&quot;;&quot;..\xulrunner-sdk\include\nspr&quot;;&quot;..\xulrunner-sdk\include\string&quot;;&quot;..\xulrunner-sdk\include\uriloader&quot;;&quot;..\xulrunner-sdk\include\profile&quot;;&quot;..\xulrunner-sdk\include\windowwatcher&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS;XPCOM_GLUE=1;XP_WIN=1"
-				RuntimeLibrary="2"
+				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				TreatWChar_tAsBuiltInType="false"
 				UsePrecompiledHeader="2"

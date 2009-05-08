@@ -67,20 +67,30 @@ JSBool g2_get_input_value(JSContext * cx, JSObject * obj, uintN argc, jsval * ar
 		{
 			curInput->GetChecked(&checked);
 			*rval = checked ? JSVAL_TRUE : JSVAL_FALSE;
+			break;
 		}
 		else if(type.Compare(NS_LITERAL_STRING("radio")) == 0)
 		{
 			curInput->GetChecked(&checked);
 			if(checked)
 				curInput->GetValue(value);
+			else
+			{
+				curInput->Release();
+				curNode->Release();
+				continue;
+			}
 		}
 		else
 			curInput->GetValue(value);
 		curInput->Release();
 		curNode->Release();
 		
-		JSString * valueStr = JS_NewUCStringCopyN(cx, (jschar*)value.get(), value.Length());
-		*rval = STRING_TO_JSVAL(valueStr);
+		if(*rval == JSVAL_NULL)
+		{
+			JSString * valueStr = JS_NewUCStringCopyN(cx, (jschar*)value.get(), value.Length());
+			*rval = STRING_TO_JSVAL(valueStr);
+		}
 		break;
 	}
 	nodes->Release();

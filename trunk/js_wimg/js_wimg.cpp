@@ -58,6 +58,7 @@ void wimfilecleanup(JSContext * cx, JSObject * obj)
 	HANDLE wimHandle = JS_GetPrivate(cx, obj);
 	if(wimHandle == NULL)
 		return;
+	WIMUnregisterMessageCallback(wimHandle, NULL);
 	struct uiInfo * curUi = uiHead;
 	while(curUi != NULL && curUi->wimFile != wimHandle)
 		curUi = curUi->next;
@@ -81,7 +82,7 @@ JSBool wimg_create_file(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 	DWORD desiredAccess = WIM_GENERIC_READ,
 		creationDisposition = WIM_OPEN_EXISTING,
 		flags = 0,
-		compressionType = 0,
+		compressionType = WIM_COMPRESS_LZX,
 		creationResult;
 
 	JS_BeginRequest(cx);
@@ -294,14 +295,6 @@ JSBool wimg_image_info_getter(JSContext * cx, JSObject * obj, jsval idval, jsval
 	*vp = xmlStrVal;
 	LocalFree(rawImageInfo);
 
-/*	JSObject * xmlObj = js_ValueToXMLObject(cx, xmlStrVal);
-	if(xmlObj == NULL)
-	{
-		JS_ReportError(cx, "Error creating xml object from xml string");
-		JS_EndRequest(cx);
-		return JS_FALSE;
-	}
-	*vp = OBJECT_TO_JSVAL(xmlObj);*/
 	JS_EndRequest(cx);
 	return JS_TRUE;
 }
@@ -313,7 +306,7 @@ JSBool wimg_image_info_setter(JSContext * cx, JSObject * obj, jsval idval, jsval
 }
 
 JSBool openfiledlg(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval);
-
+extern MatchSet * setHead;
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -328,6 +321,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "StartUI", wimg_start_ui, 0, 0 },
 		{ "StopUI", wimg_stop_ui, 0, 0 },
 		{ "LoadImage", wimg_load_image, 2, 0 },
+		{ "SetExceptionsList", wimg_set_exceptions, 1, 0 },
 		{ 0 },
 	};
 
@@ -354,6 +348,12 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 
 BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
 {
+	while(setHead != NULL)
+	{
+		MatchSet * nextSet = setHead->next;
+		delete setHead;
+		setHead = nextSet;
+	}
 	return TRUE;
 }
 #ifdef __cplusplus

@@ -16,6 +16,9 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMWindow2.h"
+#include "nsIDOMNode.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMDocument.h"
 #include "nsIURI.h"
 #include "nsIWeakReference.h"
 #include "nsIWeakReferenceUtils.h"
@@ -50,7 +53,7 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	WORD cX, cY;
 	nsresult rv;
 
-	if(!JS_ConvertArguments(cx, argc, argv, "c c", &cX, &cY))
+	if(!JS_ConvertArguments(cx, argc, argv, "c c /b", &cX, &cY, &newPrivateData->allowClose))
 	{
 		cX = 800;
 		cY = 600;
@@ -89,15 +92,49 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	return JS_TRUE;
 }
 
+void UnregisterEvents(PrivateData * mPrivate);
+extern JSObject * lDOMNodeProto;
+extern JSClass lDOMNodeClass;
+
+JSBool g2_get_element_by_id(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
+	LPWSTR idStr;
+	JS_BeginRequest(cx);
+	if(!JS_ConvertArguments(cx, argc, argv, "W", &idStr))
+	{
+		JS_ReportError(cx, "Error in argument processing in g2_get_element_by_id");
+		JS_EndRequest(cx);
+		return JS_FALSE;
+	}
+
+	nsCOMPtr<nsIDOMDocument> mDocument;
+	mPrivate->mDOMWindow->GetDocument(getter_AddRefs(mDocument));
+	nsCOMPtr<nsIDOMElement> mElement;
+	if(mDocument->GetElementById(nsDependentString(idStr), getter_AddRefs(mElement)) == NS_OK)
+	{
+		nsIDOMNode * mNode;
+		mElement->QueryInterface(NS_GET_IID(nsIDOMNode), (void**)&mNode);
+		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
+		*rval = OBJECT_TO_JSVAL(retObj);
+		JS_SetPrivate(cx, retObj, mNode);
+	}
+	else
+		*rval = JSVAL_FALSE;
+	JS_EndRequest(cx);
+	return JS_TRUE;
+}
+
 JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	nsresult rv;
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	LPWSTR baseUrl;
 	char * dataToLoad, *contentType = "text/html";
+	JSString * target = NULL, *action = NULL;
 
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "s W/ s", &dataToLoad, &baseUrl, &contentType))
+	if(!JS_ConvertArguments(cx, argc, argv, "s W/ S S s", &dataToLoad, &baseUrl, &target, &action, &contentType))
 	{
 		JS_ReportError(cx, "Error in argument processing in g2_load_data");
 		JS_EndRequest(cx);
@@ -107,12 +144,31 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	nsCOMPtr<nsIWebBrowser> mWebBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mWebBrowser));
 
+	UnregisterEvents(mPrivate);
 	nsCOMPtr<nsIWebBrowserStream> wbStream = do_QueryInterface(mWebBrowser);
 	nsCOMPtr<nsIURI> uri;
 	rv = NS_NewURI(getter_AddRefs(uri), nsString(baseUrl));
 	wbStream->OpenStream(uri, nsDependentCString(contentType));
 	wbStream->AppendToStream((PRUint8*)dataToLoad, strlen(dataToLoad));
 	wbStream->CloseStream();
+
+	if(target != NULL && !JSVAL_IS_NULL(argv[2]))
+	{
+		jsval targetName = STRING_TO_JSVAL(target);
+		g2_get_element_by_id(cx, obj, 1, &targetName, rval);
+		if(*rval == JSVAL_FALSE)
+			return JS_TRUE;
+		jsval pArgv[2];
+		pArgv[0] = *rval;
+		if(action == NULL)
+			action = JS_NewUCStringCopyZ(cx, TEXT("click"));
+		pArgv[1] = STRING_TO_JSVAL(action);
+		JS_AddRoot(cx, action);
+		g2_register_event(cx, obj, 2, pArgv, rval);
+		JS_RemoveRoot(cx, action);
+		*rval = JSVAL_NULL;
+		g2_wait_for_things(cx, obj, 0, rval, rval);
+	}
 
 	return JS_TRUE;
 }
@@ -133,7 +189,7 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	nsCOMPtr<nsIWebBrowser> mBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mBrowser));
-
+	UnregisterEvents(mPrivate);
 	nsCOMPtr<nsIWebNavigation> mWebNavigation = do_QueryInterface(mBrowser);
 	nsresult result = mWebNavigation->LoadURI(NS_ConvertUTF8toUTF16(uri).get(), nsIWebNavigation::LOAD_FLAGS_NONE, NULL, NULL, NULL);
 	*rval = result == NS_OK ? JSVAL_TRUE : JSVAL_FALSE;
@@ -143,10 +199,9 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 JSBool g2_destroy(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	mPrivate->mChrome->DestroyBrowserWindow();
-	nViews--;
-	if(nViews == 0)
-		keepUIGoing = FALSE;
+	EnterCriticalSection(&viewsLock);
+	mPrivate->destroying = TRUE;
+	LeaveCriticalSection(&viewsLock);
 	return JS_TRUE;
 }
 
@@ -177,7 +232,7 @@ extern "C" {
 BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 {
 	JSFunctionSpec geckoViewFuncs[] = {
-		{ "LoadData", g2_load_data, 3, 0 },
+		{ "LoadData", g2_load_data, 5, 0 },
 		{ "LoadURI", g2_load_uri, 1, 0 },
 		{ "Destroy", g2_destroy, 0, 0 },
 		{ "GetDOM", g2_get_dom, 0, 0 },
@@ -186,6 +241,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "WaitForStuff", g2_wait_for_stuff, 2, 0 },
 		{ "WaitForThings", g2_wait_for_things, 2, 0 },
 		{ "GetInput", g2_get_input_value, 1, 0 },
+		{ "GetElementByID", g2_get_element_by_id, 1, 0 },
 		{ 0 }
 	};
 

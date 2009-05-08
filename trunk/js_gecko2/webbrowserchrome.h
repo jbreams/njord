@@ -30,6 +30,7 @@ public:
 
 	nsresult CreateBrowser(HWND nativeWnd);
 	PRBool		 mDocumentLoaded;
+	PRBool		 mAllowClose;
 
 protected:
 

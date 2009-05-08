@@ -7,9 +7,10 @@ JSBool openfiledlg(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	LPWSTR initialDirectory = NULL;
 	LPWSTR dlgTitle = NULL;
 	LPWSTR defaultExtension = NULL;
+	JSBool save = JS_FALSE;
 	
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "W W W o", &initialDirectory, &defaultExtension, &dlgTitle, &filterArray))
+	if(!JS_ConvertArguments(cx, argc, argv, "W W W o/ b", &initialDirectory, &defaultExtension, &dlgTitle, &filterArray, &save))
 	{
 		JS_ReportError(cx, "Error parsing arguments in OpenFileDialog");
 		JS_EndRequest(cx);
@@ -53,7 +54,11 @@ JSBool openfiledlg(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	ofn.lpstrTitle = dlgTitle;
 	ofn.lpstrDefExt = defaultExtension;
 	jsrefcount rCount = JS_SuspendRequest(cx);
-	BOOL ok = GetOpenFileName(&ofn);
+	BOOL ok;
+	if(save)
+		ok = GetSaveFileName(&ofn);
+	else
+		ok = GetOpenFileName(&ofn);
 	DWORD errorCode = CommDlgExtendedError();
 	HeapFree(GetProcessHeap(), 0, filterBuffer);
 	JS_ResumeRequest(cx, rCount);
