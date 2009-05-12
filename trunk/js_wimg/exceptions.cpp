@@ -7,6 +7,8 @@ MatchEntry::MatchEntry(LPWSTR copyFrom)
 	matchLen = wcslen(copyFrom);
 	matchString = (LPWSTR)HeapAlloc(GetProcessHeap(), 0, sizeof(WCHAR) * (matchLen + 1));
 	wcscpy_s(matchString, matchLen + 1, copyFrom);
+	if(wcsrchr(copyFrom, TEXT('\\')) == NULL)
+		fileName = TRUE;
 }
 
 MatchEntry::~MatchEntry()
@@ -18,9 +20,9 @@ BOOL MatchEntry::Match(LPWSTR target, LPWSTR patternStr = NULL)
 {
 	enum State { Exact, Any, AnyRepeat };
 
-	LPWSTR s = target, p = matchString, q = NULL;
-	if(patternStr != NULL)
-		p = patternStr;
+	LPWSTR s = target, p = (patternStr == NULL ? matchString : patternStr), q = NULL;
+	if(fileName == TRUE)
+		s = wcsrchr(s, TEXT('\\'));
 	BOOL match = TRUE;
 	int state = 0;
 	while(match && *p)

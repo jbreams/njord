@@ -16,6 +16,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMNode.h"
+#include "nsIDOM3Node.h"
 
 #include "nsXPCOMCIDInternal.h"
 #include "nsIProxyObjectManager.h"
@@ -23,20 +24,20 @@
 
 EventRegistration::EventRegistration()
 {
-	domEvent = NULL;
 	callback = NULL;
-	stopBubbles = FALSE;
+	target = NULL;
 	windowsEvent = INVALID_HANDLE_VALUE;
+	next = NULL;
 }
 
 EventRegistration::~EventRegistration()
 {
-	if(domEvent)
-		HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, domEvent);
 	if(callback)
-		HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, callback);
+		free(callback);
 	if(windowsEvent != INVALID_HANDLE_VALUE)
 		CloseHandle(windowsEvent);
+	if(target != NULL)
+		target->Release();
 }
 
 NS_IMPL_ISUPPORTS1(DOMEventListener,
@@ -45,44 +46,221 @@ NS_IMPL_ISUPPORTS1(DOMEventListener,
 DOMEventListener::DOMEventListener(PrivateData *aOwner)
 {
 	mOwner = aOwner;
+	head = NULL;
+	regCount = 0;
+	InitializeCriticalSection(&headLock);
+	addRemoveMutex = CreateMutex(NULL, FALSE, NULL);
 }
 
 DOMEventListener::~DOMEventListener()
 {
-
+	UnregisterAll();
+	DeleteCriticalSection(&headLock);
 }
 
 NS_IMETHODIMP DOMEventListener::HandleEvent(nsIDOMEvent *aEvent)
 {
-	EnterCriticalSection(&mOwner->eventHeadLock);
-	if(mOwner->eventHead == NULL)
+	EnterCriticalSection(&headLock);
+	if(head == NULL)
 	{
-		LeaveCriticalSection(&mOwner->eventHeadLock);
+		LeaveCriticalSection(&headLock);
 		return NS_OK;
 	}
 	
 	nsString eventType;
 	aEvent->GetType(eventType);
+	nsCOMPtr<nsIDOMEventTarget> eventTarget;
+	aEvent->GetTarget(getter_AddRefs(eventTarget));
+	nsCOMPtr<nsIDOM3Node> targetNode = do_QueryInterface(eventTarget);
 
-	EventRegistration * curReg = mOwner->eventHead;
+	EventRegistration * curReg = head;
 	while(curReg != NULL)
 	{
-		if(eventType.Compare(curReg->domEvent) == 0)
+		PRBool isSame = PR_FALSE;
+		targetNode->IsSameNode(curReg->target, &isSame);
+		if(eventType.Compare(curReg->domEvent) == 0 && isSame)
 		{
 			SetEvent(curReg->windowsEvent);
-			if(curReg->stopBubbles)
-				aEvent->StopPropagation();
 			if(curReg->callback)
 			{
 				JS_BeginRequest(mOwner->mContext);
 				JS_CallFunctionName(mOwner->mContext, JS_GetGlobalObject(mOwner->mContext), curReg->callback, 0, NULL, NULL);
 				JS_EndRequest(mOwner->mContext);
 			}
+			break;
 		}
 		curReg = curReg->next;
 	}
-	LeaveCriticalSection(&mOwner->eventHeadLock);
+	LeaveCriticalSection(&headLock);
 	return NS_OK;
+}
+
+BOOL DOMEventListener::RegisterEvent(nsIDOMNode *target, LPWSTR type, LPSTR callback)
+{
+	WaitForSingleObject(addRemoveMutex, INFINITE);
+	nsDependentString typeString(type);
+	nsIDOMEventTarget * realTarget;
+	target->QueryInterface(NS_GET_IID(nsIDOMEventTarget), (void**)&realTarget);
+	nsresult rv = realTarget->AddEventListener(typeString, (nsIDOMEventListener*)this, PR_FALSE);
+	realTarget->Release();
+
+	if(NS_SUCCEEDED(rv))
+	{
+		EventRegistration * nReg = new EventRegistration();
+		nReg->domEvent = typeString;
+		if(callback != NULL)
+			nReg->callback = _strdup(callback);
+		nReg->windowsEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+		nReg->target = target;
+		target->AddRef();
+
+		EnterCriticalSection(&headLock);
+		nReg->next = head;
+		head = nReg;
+		regCount++;
+		LeaveCriticalSection(&headLock);
+		ReleaseMutex(addRemoveMutex);
+		return TRUE;
+	}
+	ReleaseMutex(addRemoveMutex);
+	return FALSE;
+}
+
+void DOMEventListener::UnregisterEvent(nsIDOMNode * targetNode, LPWSTR type)
+{
+	nsIDOM3Node * realTarget;
+	targetNode->QueryInterface(NS_GET_IID(nsIDOM3Node), (void**)&realTarget);
+
+	EventRegistration * curEr, *lastEr = NULL;
+	EnterCriticalSection(&headLock);
+	curEr = head;
+	WaitForSingleObject(addRemoveMutex, INFINITE);
+	while(curEr != NULL)
+	{
+		PRBool nodesAreSame = PR_FALSE;
+		realTarget->IsSameNode(curEr->target, &nodesAreSame);
+		if(!(curEr->domEvent.Compare(type) == 0 && nodesAreSame))
+		{
+			lastEr = curEr;
+			curEr = curEr->next;
+			continue;
+		}
+		if(lastEr != NULL)
+			lastEr->next = curEr->next;
+		else
+			head = curEr->next;
+		break;
+	}
+	if(curEr != NULL)
+		regCount--;
+	LeaveCriticalSection(&headLock);
+	
+	if(curEr != NULL)
+	{
+		nsCOMPtr<nsIDOMEventTarget> eventTarget = do_QueryInterface(curEr->target);
+		eventTarget->RemoveEventListener(curEr->domEvent, (nsIDOMEventListener*)this, PR_FALSE);
+		delete curEr;
+	}
+	ReleaseMutex(addRemoveMutex);
+	realTarget->Release();
+}
+
+void DOMEventListener::UnregisterAll()
+{
+	EventRegistration * curEr;
+	EnterCriticalSection(&headLock);
+	curEr = head;
+	WaitForSingleObject(addRemoveMutex, INFINITE);
+	while(curEr != NULL)
+	{
+		nsCOMPtr<nsIDOMEventTarget>  eventTarget = do_QueryInterface(curEr->target);
+		eventTarget->RemoveEventListener(curEr->domEvent, (nsIDOMEventListener*)this, PR_FALSE);
+		EventRegistration * nextEr = curEr->next;
+		delete curEr;
+		curEr = nextEr;
+	}
+	head = NULL;
+	regCount = 0;
+	ReleaseMutex(addRemoveMutex);
+	LeaveCriticalSection(&headLock);
+}
+
+BOOL DOMEventListener::WaitForSingleEvent(nsIDOMNode *target, LPWSTR type, DWORD timeout)
+{
+	EventRegistration * curEr;
+	nsIDOM3Node * realTarget;
+	target->QueryInterface(NS_GET_IID(nsIDOM3Node), (void**)&realTarget);
+	HANDLE waitForMe = NULL;
+
+	EnterCriticalSection(&headLock);
+	curEr = head;
+	while(curEr != NULL)
+	{
+		PRBool isEqual = PR_FALSE;
+		if(curEr->domEvent.Compare(type) == 0)
+			realTarget->IsSameNode(curEr->target, &isEqual);
+		if(isEqual)
+			break;
+		curEr = curEr->next;
+	}
+	if(curEr != NULL)
+		DuplicateHandle(GetCurrentProcess(), curEr->windowsEvent, GetCurrentProcess(), &waitForMe, SYNCHRONIZE, FALSE, 0);
+	LeaveCriticalSection(&headLock);
+	realTarget->Release();
+
+	if(waitForMe == NULL)
+		return FALSE;
+
+	BOOL retval = FALSE;
+	if(WaitForSingleObject(waitForMe, timeout) == WAIT_OBJECT_0)
+		retval = TRUE;
+	ResetEvent(waitForMe);
+	CloseHandle(waitForMe);
+	return retval;
+}
+
+BOOL DOMEventListener::WaitForAllEvents(DWORD timeout, BOOL waitAll, JSObject ** out)
+{
+	EnterCriticalSection(&headLock);
+	if(regCount == 0)
+		return FALSE;
+	HANDLE * handles = new HANDLE[regCount];
+	DWORD i = 0;
+	EventRegistration * curReg = head;
+	while(curReg != NULL)
+	{
+		if(DuplicateHandle(GetCurrentProcess(), curReg->windowsEvent, GetCurrentProcess(), &handles[i], SYNCHRONIZE, FALSE, 0))
+			i++;
+		curReg = curReg->next;
+	}
+	WaitForSingleObject(addRemoveMutex, INFINITE);
+	LeaveCriticalSection(&headLock);
+
+	if(i == 0)
+	{
+		delete [] handles;
+		return 0;
+	}
+
+	DWORD result = WaitForMultipleObjects(i, handles, waitAll, timeout);
+	for(DWORD c= 0; c < i; c++)
+	{
+		ResetEvent(handles[c]);
+		CloseHandle(handles[c]);
+	}
+	delete [] handles;
+	if(result == WAIT_TIMEOUT)
+		return FALSE;
+	return TRUE;
+
+/*	if(waitAll == TRUE || out == NULL)
+		return TRUE;
+
+	EnterCriticalSection(&headLock);
+	curReg = head;
+	for(i = WAIT_OBJECT_0; (i < result) && curReg != NULL; i++, curReg = curReg->next) ;
+	if(curReg == NULL)
+		return TRUE;*/
 }
 
 extern JSClass lDOMNodeClass;
@@ -90,14 +268,12 @@ extern JSObject * lDOMNodeProto;
 
 JSBool g2_register_event(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	EventRegistration * newReg;
 	LPSTR callback = NULL;
 	LPTSTR domEvent = NULL;
-	BOOL stopPropogation = FALSE;
 	JSObject * target = NULL;
 
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "o W/ s b", &target, &domEvent, &callback, &stopPropogation))
+	if(!JS_ConvertArguments(cx, argc, argv, "o W/ s", &target, &domEvent, &callback))
 	{
 		JS_ReportError(cx, "Error parsing arguments in registerevent.");
 		JS_EndRequest(cx);
@@ -112,68 +288,11 @@ JSBool g2_register_event(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	}
 
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	EnterCriticalSection(&mPrivate->eventHeadLock);
-	EventRegistration * curReg = mPrivate->eventHead;
-	*rval = JSVAL_NULL;
-	while(curReg != NULL)
-	{
-		if(_wcsicmp(curReg->domEvent, domEvent) == 0)
-		{
-			*rval = JSVAL_TRUE;
-			curReg->stopBubbles = stopPropogation;
-			if(callback != NULL)
-			{
-				if(curReg->callback != NULL)
-					HeapFree(GetProcessHeap(), 0, curReg->callback);
-				curReg->callback = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, strlen(callback) + 1);
-				strcpy_s(curReg->callback, strlen(callback) + 1, callback);
-			}
-			else
-			{
-				if(curReg->callback != NULL)
-				{	
-					HeapFree(GetProcessHeap(), 0, curReg->callback);
-					curReg->callback = NULL;
-				}	
-			}
-		}
-		curReg = curReg->next;
-	}
-	LeaveCriticalSection(&mPrivate->eventHeadLock);
-	if(*rval == JSVAL_TRUE)
-	{
-		JS_EndRequest(cx);
-		return JS_TRUE;
-	}
-
 	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, target);
-	nsIDOMEventTarget * eventTarget;
-	mNode->QueryInterface(NS_GET_IID(nsIDOMEventTarget), (void**)&eventTarget);
-	nsresult rv = eventTarget->AddEventListener(nsString(domEvent), (nsIDOMEventListener*)mPrivate->mDOMListener, PR_FALSE);
-	if(NS_SUCCEEDED(rv))
-	{
-		newReg = new EventRegistration();
-		newReg->stopBubbles = stopPropogation;
-		newReg->domEvent = (LPTSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (wcslen(domEvent) + 1) * sizeof(TCHAR));
-		wcscpy_s(newReg->domEvent, (wcslen(domEvent) + 1), domEvent);
-		if(callback != NULL)
-		{
-			newReg->callback = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (strlen(callback) + 1));
-			strcpy_s(newReg->callback, strlen(callback) + 1, callback);
-		}
-		newReg->windowsEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-
-		EnterCriticalSection(&mPrivate->eventHeadLock);
-		newReg->next = mPrivate->eventHead;
-		mPrivate->eventHead = newReg;
-		mPrivate->eventRegCount++;
-		LeaveCriticalSection(&mPrivate->eventHeadLock);
+	if(mPrivate->mDOMListener->RegisterEvent(mNode, domEvent, callback))
 		*rval = JSVAL_TRUE;
-	}
 	else
 		*rval = JSVAL_FALSE;
-	eventTarget->Release();
-
 	return JS_TRUE;
 }
 
@@ -181,8 +300,9 @@ JSBool g2_wait_for_stuff(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 {
 	LPWSTR domEvent = NULL;
 	DWORD timeOut = INFINITE;
+	JSObject * nodeObj = NULL;
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "W/ u", &domEvent, &timeOut))
+	if(!JS_ConvertArguments(cx, argc, argv, "W o/ u", &domEvent, &nodeObj, &timeOut))
 	{
 		JS_ReportError(cx, "Error parsing arguments in waitforstuff.");
 		JS_EndRequest(cx);
@@ -190,29 +310,9 @@ JSBool g2_wait_for_stuff(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	}
 	JS_EndRequest(cx);
 
-	HANDLE eventToWaitFor = NULL;
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	EnterCriticalSection(&mPrivate->eventHeadLock);
-	EventRegistration * curReg = mPrivate->eventHead;
-	*rval = JSVAL_NULL;
-	while(curReg != NULL)
-	{
-		if(_wcsicmp(curReg->domEvent, domEvent) == 0)
-		{
-			if(!DuplicateHandle(GetCurrentProcess(), curReg->windowsEvent, GetCurrentProcess(), &eventToWaitFor, 0, FALSE, DUPLICATE_SAME_ACCESS))
-				*rval = JSVAL_FALSE;
-			break;
-		}
-		curReg = curReg->next;
-	}
-	LeaveCriticalSection(&mPrivate->eventHeadLock);
-
-	if(*rval == JSVAL_FALSE || *rval == JSVAL_NULL)
-		return JS_TRUE;
-
-	*rval = WaitForSingleObject(eventToWaitFor, timeOut) == WAIT_OBJECT_0 ? JSVAL_TRUE : JSVAL_FALSE;
-	ResetEvent(eventToWaitFor);
-	CloseHandle(eventToWaitFor);
+	nsIDOMNode * node = (nsIDOMNode*)JS_GetPrivate(cx, nodeObj);
+	*rval = mPrivate->mDOMListener->WaitForSingleEvent(node, domEvent, timeOut) ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
 
@@ -228,60 +328,20 @@ JSBool g2_wait_for_things(JSContext * cx, JSObject * obj, uintN argc, jsval * ar
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
+	JS_EndRequest(cx);
 
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	EnterCriticalSection(&mPrivate->eventHeadLock);
-	DWORD eventIter = 0;
-	HANDLE * eventsToWaitFor = (HANDLE*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(HANDLE) * mPrivate->eventRegCount);
-	EventRegistration * curReg = mPrivate->eventHead;
-	while(curReg != NULL)
-	{
-		DuplicateHandle(GetCurrentProcess(), curReg->windowsEvent, GetCurrentProcess(), &eventsToWaitFor[eventIter++], 0, FALSE, DUPLICATE_SAME_ACCESS);
-		curReg = curReg->next;
-	}
-	LeaveCriticalSection(&mPrivate->eventHeadLock);
-
-	JS_EndRequest(cx);
-	DWORD waitResult = WaitForMultipleObjects(eventIter, eventsToWaitFor, waitForAll, timeOut);
-	for(DWORD j = 0; j < eventIter; j++)
-	{
-		ResetEvent(eventsToWaitFor[j]);
-		CloseHandle(eventsToWaitFor[j]);
-	}
-
-	if(!waitForAll)
-	{
-		JS_BeginRequest(cx);
-		EnterCriticalSection(&mPrivate->eventHeadLock);
-		curReg = mPrivate->eventHead;
-		DWORD j = WAIT_OBJECT_0;
-		while(curReg != NULL && j <= waitResult)
-		{
-			curReg = curReg->next;
-			j++;
-		}
-
-		if(curReg == NULL)
-			*rval = JSVAL_NULL;
-		else
-		{
-			JSString * retStr = JS_NewUCStringCopyZ(cx, curReg->domEvent);
-			*rval = STRING_TO_JSVAL(retStr);
-		}
-		LeaveCriticalSection(&mPrivate->eventHeadLock);
-		JS_EndRequest(cx);
-	}
-	else
-		*rval = JSVAL_TRUE;
+	*rval = mPrivate->mDOMListener->WaitForAllEvents(timeOut, waitForAll, NULL) ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
 
 JSBool g2_unregister_event(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	LPTSTR domEvent = NULL;
+	JSObject * nodeObj = NULL;
 
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "/o W", &domEvent))
+	if(!JS_ConvertArguments(cx, argc, argv, "/o W", &nodeObj, &domEvent))
 	{
 		JS_ReportError(cx, "Error parsing arguments in registerevent.");
 		JS_EndRequest(cx);
@@ -290,52 +350,14 @@ JSBool g2_unregister_event(JSContext * cx, JSObject * obj, uintN argc, jsval * a
 	JS_EndRequest(cx);
 
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	EnterCriticalSection(&mPrivate->eventHeadLock);
-	if(domEvent == NULL)
-	{
-		EventRegistration * back = mPrivate->eventHead;
-		mPrivate->eventHead = NULL;
-		mPrivate->eventRegCount = 0;
-		LeaveCriticalSection(&mPrivate->eventHeadLock);
-		while(back != NULL)
-		{
-			EventRegistration * nBack = back->next;
-			delete back;
-			back = nBack;
-		}
-		return JS_TRUE;
-	}
-
-	EventRegistration * curReg = mPrivate->eventHead, *prevReg = NULL;
-	while(curReg != NULL && _wcsicmp(curReg->domEvent, domEvent) != 0)
-	{
-		prevReg = curReg;
-		curReg = curReg->next;
-	}
-	if(curReg == NULL)
-		*rval = JSVAL_FALSE;
+	if(nodeObj && domEvent == NULL)
+		mPrivate->mDOMListener->UnregisterAll();
 	else
 	{
-		prevReg->next = curReg->next;
-		delete curReg;
-		*rval = JSVAL_TRUE;
-	}
-	LeaveCriticalSection(&mPrivate->eventHeadLock);
-	return JS_TRUE;
-}
+		nsIDOMNode * node = (nsIDOMNode*)JS_GetPrivate(cx, nodeObj);
+		mPrivate->mDOMListener->UnregisterEvent(node, domEvent);
 
-void UnregisterEvents(PrivateData * mPrivate)
-{
-	EnterCriticalSection(&mPrivate->eventHeadLock);
-	EventRegistration * curReg = mPrivate->eventHead;
-	while(curReg != NULL)
-	{
-		SetEvent(curReg->windowsEvent);
-		EventRegistration * nextReg = curReg->next;
-		delete curReg;
-		curReg = nextReg;
 	}
-	mPrivate->eventHead = NULL;
-	mPrivate->eventRegCount = 0;
-	LeaveCriticalSection(&mPrivate->eventHeadLock);
+
+	return JS_TRUE;
 }

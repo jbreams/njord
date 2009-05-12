@@ -131,20 +131,20 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	LPWSTR baseUrl;
 	char * dataToLoad, *contentType = "text/html";
-	JSString * target = NULL, *action = NULL;
+	LPWSTR target = NULL, action = NULL;
 
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "s W/ S S s", &dataToLoad, &baseUrl, &target, &action, &contentType))
+	if(!JS_ConvertArguments(cx, argc, argv, "s W/ W W s", &dataToLoad, &baseUrl, &target, &action, &contentType))
 	{
 		JS_ReportError(cx, "Error in argument processing in g2_load_data");
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 	JS_EndRequest(cx);
+	mPrivate->mDOMListener->UnregisterAll();
+
 	nsCOMPtr<nsIWebBrowser> mWebBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mWebBrowser));
-
-	UnregisterEvents(mPrivate);
 	nsCOMPtr<nsIWebBrowserStream> wbStream = do_QueryInterface(mWebBrowser);
 	nsCOMPtr<nsIURI> uri;
 	rv = NS_NewURI(getter_AddRefs(uri), nsString(baseUrl));
@@ -154,21 +154,32 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 
 	if(target != NULL && !JSVAL_IS_NULL(argv[2]))
 	{
-		jsval targetName = STRING_TO_JSVAL(target);
-		g2_get_element_by_id(cx, obj, 1, &targetName, rval);
-		if(*rval == JSVAL_FALSE)
+		nsIDOMDocument * document;
+		mPrivate->mDOMWindow->GetDocument(&document);
+		nsIDOMElement * mElement;
+		if(NS_FAILED(document->GetElementById(nsDependentString(target), &mElement)))
+		{
+			document->Release();
+			*rval = JSVAL_FALSE;
 			return JS_TRUE;
-		jsval pArgv[2];
-		pArgv[0] = *rval;
-		if(action == NULL)
-			action = JS_NewUCStringCopyZ(cx, TEXT("click"));
-		pArgv[1] = STRING_TO_JSVAL(action);
-		JS_AddRoot(cx, action);
-		g2_register_event(cx, obj, 2, pArgv, rval);
-		JS_RemoveRoot(cx, action);
-		*rval = JSVAL_NULL;
-		g2_wait_for_things(cx, obj, 0, rval, rval);
+		}
+		nsIDOMNode * mNode;
+		mElement->QueryInterface(NS_GET_IID(nsIDOMNode), (void**)&mNode);
+		mElement->Release();
+		document->Release();
+		if(!mPrivate->mDOMListener->RegisterEvent(mNode, action, NULL))
+		{
+			mNode->Release();
+			*rval = JSVAL_FALSE;
+			return JS_TRUE;
+		}
+		if(!mPrivate->mDOMListener->WaitForSingleEvent(mNode, action, INFINITE))
+		{
+			mNode->Release();
+			*rval = JSVAL_FALSE;
+		}
 	}
+	*rval = JSVAL_TRUE;
 
 	return JS_TRUE;
 }
@@ -187,9 +198,9 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 
 	nsresult rv;
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
+	mPrivate->mDOMListener->UnregisterAll();
 	nsCOMPtr<nsIWebBrowser> mBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mBrowser));
-	UnregisterEvents(mPrivate);
 	nsCOMPtr<nsIWebNavigation> mWebNavigation = do_QueryInterface(mBrowser);
 	nsresult result = mWebNavigation->LoadURI(NS_ConvertUTF8toUTF16(uri).get(), nsIWebNavigation::LOAD_FLAGS_NONE, NULL, NULL, NULL);
 	*rval = result == NS_OK ? JSVAL_TRUE : JSVAL_FALSE;

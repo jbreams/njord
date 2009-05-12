@@ -11,7 +11,7 @@
 			<DebugSettings
 				Command="$(TargetPath)"
 				WorkingDirectory=""
-				CommandArguments="c:\winpe\Program Files\nJord\imageclient.js"
+				CommandArguments="test2.js"
 				Attach="false"
 				DebuggerType="3"
 				Remote="1"

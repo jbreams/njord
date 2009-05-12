@@ -14,6 +14,7 @@
 #include "nsIDOMWindow2.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMNode.h"
+#include "nsIDOM3Node.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMText.h"
 #include "nsIDOMNamedNodeMap.h"
@@ -149,14 +150,26 @@ JSBool stringPropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 	mNode->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)&mElement);
 
 	nsString value;
-	if(idval == NAME_PROP)
-		mNode->GetNodeName(value);
-	else if(idval == VALUE_PROP)
-		mNode->GetNodeValue(value);
-	else if(idval == TAGNAME_PROP)
+	switch(JSVAL_TO_INT(idval))
 	{
+	case NAME_PROP:
+		mNode->GetNodeName(value);
+		break;
+	case VALUE_PROP:
+		mNode->GetNodeValue(value);
+		break;
+	case TAGNAME_PROP:
 		if(mElement)
 			mElement->GetTagName(value);
+		break;
+	case TEXT_PROP:
+		{
+			nsIDOM3Node * l3Node;
+			mNode->QueryInterface(NS_GET_IID(nsIDOM3Node), (void**)&l3Node);
+			l3Node->GetTextContent(value);
+			l3Node->Release();
+		}
+		break;
 	}
 	if(mElement)
 		mElement->Release();
@@ -183,8 +196,16 @@ JSBool stringPropSetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 	nsresult result;
 	switch(JSVAL_TO_INT(idval))
 	{
-	case 3:
+	case VALUE_PROP:
 		result = mNode->SetNodeValue(nsDependentString(valChars));
+		break;
+	case TEXT_PROP:
+		{
+			nsIDOM3Node * l3Node;
+			mNode->QueryInterface(NS_GET_IID(nsIDOM3Node), (void**)&l3Node);
+			l3Node->SetTextContent(nsDependentString(valChars));
+			l3Node->Release();
+		}
 		break;
 	}
 	JS_EndRequest(cx);
@@ -373,81 +394,6 @@ JSBool removeChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	else
 		*rval = JSVAL_FALSE;
 	JS_EndRequest(cx);
-	return JS_TRUE;
-}
-
-JSBool getElementText(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
-{
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMNodeList * children;
-	mNode->GetChildNodes(&children);
-	PRUint32 nChildren;
-	children->GetLength(&nChildren);
-	
-	LPWSTR retString = (LPWSTR)JS_malloc(cx, (512 * sizeof(WCHAR)));
-	memset(retString, 0, sizeof(WCHAR) * 512);
-	DWORD retSCLength = 512;
-	for(PRUint32 i = 0; i < nChildren; i++)
-	{
-		nsIDOMNode * curChild;
-		children->Item(i, &curChild);
-		
-		PRUint16 type;
-		curChild->GetNodeType(&type);
-		if(type != nsIDOMNode::TEXT_NODE)
-			continue;
-
-		nsString curString;
-		curChild->GetNodeValue(curString);
-		if((wcslen(retString) + curString.Length() + 1) > retSCLength)
-		{
-			retSCLength += 128;
-			retString = (LPWSTR)JS_realloc(cx, retString, retSCLength * sizeof(WCHAR));
-		}
-		wcscat_s(retString, retSCLength - wcslen(retString), curString.get());
-		curChild->Release();
-	}
-	children->Release();
-
-	JS_BeginRequest(cx);
-	JSString * retJSString = JS_NewUCString(cx, retString, wcslen(retString));
-	*vp = STRING_TO_JSVAL(retJSString);
-	JS_EndRequest(cx);
-	return JS_TRUE;
-}
-
-JSBool setElementText(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
-{
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMNodeList * children;
-	mNode->GetChildNodes(&children);
-	PRUint32 nChildren;
-	children->GetLength(&nChildren);
-
-	for(PRUint32 i = 0; i < nChildren; i++)
-	{
-		nsIDOMNode * curChild;
-		children->Item(i, &curChild);
-		PRUint16 curType;
-		curChild->GetNodeType(&curType);
-		if(curType == nsIDOMNode::TEXT_NODE)
-			mNode->RemoveChild(curChild, &curChild);
-		curChild->Release();
-	}
-	children->Release();
-
-	JSString * newValue = JS_ValueToString(cx, *vp);
-	nsCOMPtr<nsIDOMText> nNode;
-
-	nsIDOMDocument *mDoc;
-	mNode->GetOwnerDocument(&mDoc);
-	mDoc->CreateTextNode(nsDependentString((LPWSTR)JS_GetStringChars(newValue)), getter_AddRefs(nNode));
-	mDoc->Release();
-
-	nsCOMPtr<nsIDOMNode> newNode = do_QueryInterface(nNode);
-	nsCOMPtr<nsIDOMNode> outNode;
-	if(mNode->AppendChild(newNode, getter_AddRefs(outNode)) != NS_OK)
-		*vp = JSVAL_NULL;
 	return JS_TRUE;
 }
 
@@ -657,7 +603,7 @@ JSBool initDOMNode(JSContext * cx, JSObject * global)
 		{ "previousSibling", PREVIOUSSIBLING_PROP, readOnlyProp, nodePropGetter, NULL },
 		{ "nextSibling", NEXTSIBLING_PROP, readOnlyProp, nodePropGetter, NULL },
 		{ "children", CHILDREN_PROP, readOnlyProp, childGetter, NULL },
-		{ "text", TEXT_PROP, JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_SHARED, getElementText, setElementText },
+		{ "text", TEXT_PROP, JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_SHARED, stringPropGetter, stringPropSetter },
 		{ 0 }
 	};
 
