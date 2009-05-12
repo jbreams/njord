@@ -35,6 +35,7 @@ public:
 private:
 	LPWSTR matchString;
 	DWORD matchLen;
+	BOOL fileName;
 };
 
 class MatchSet

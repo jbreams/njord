@@ -114,6 +114,36 @@ JSBool wmi_open_class(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	return JS_TRUE;
 }
 
+JSBool wmi_open_instance(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	LPWSTR strClass = NULL;
+	IWbemClassObject * classObj;
+	IWbemServices * pSvc = (IWbemServices*)JS_GetPrivate(cx, obj);
+
+	JS_BeginRequest(cx);
+	if(!JS_ConvertArguments(cx, argc, argv, "W", &strClass))
+	{
+		JS_ReportError(cx, "Error during argument processing in wmi_get_instance");
+		JS_EndRequest(cx);
+		return JS_FALSE;
+	}
+
+	JS_YieldRequest(cx);
+	HRESULT result = pSvc->GetObjectW(_bstr_t(strClass), WBEM_FLAG_RETURN_WBEM_COMPLETE, NULL, &classObj, NULL);
+	if(result != WBEM_S_NO_ERROR)
+	{
+		SetLastError(result);
+		*rval = JSVAL_FALSE;
+		JS_EndRequest(cx);
+		return JS_TRUE;
+	}
+
+	JSObject * retObj = JS_NewObject(cx, &wmiClass, wmiClassProto, obj);
+	JS_SetPrivate(cx, retObj, classObj);
+	JS_EndRequest(cx);
+	return JS_TRUE;
+}
+
 JSBool wmi_exec_query(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	LPWSTR strClass = NULL;
@@ -145,6 +175,7 @@ JSBool wmi_exec_query(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	JS_EndRequest(cx);
 	return JS_TRUE;
 }
+
 
 void wmi_services_cleanup(JSContext * cx, JSObject * obj)
 {
@@ -252,6 +283,7 @@ JSBool wmi_getter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 	case CIM_REAL64:
 		JS_NewNumberValue(cx, (unsigned __int64)outVar, vp);
 		break;
+	case CIM_REFERENCE:
 	case CIM_STRING:
 		{
 			_bstr_t bstrVal(outVar);
@@ -304,6 +336,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 	JSFunctionSpec wmiServiceFunctions[] = {
 		{ "OpenClass", wmi_open_class, 3, 0 },
 		{ "ExecQuery", wmi_exec_query, 1, 0 },
+		{ "OpenInstance", wmi_open_instance, 1, 0 },
 		{ 0 }
 	};
 

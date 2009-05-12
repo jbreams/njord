@@ -2,20 +2,6 @@ class WebBrowserChrome;
 class DOMEventListener;
 #include "nsCOMPtr.h"
 
-class EventRegistration
-{
-public:
-	EventRegistration();
-	~EventRegistration();
-
-	LPTSTR domEvent;
-	LPSTR callback;
-	BOOL stopBubbles;
-	HANDLE windowsEvent;
-
-	EventRegistration * next;
-};
-
 class PrivateData 
 {
 public:
@@ -25,14 +11,10 @@ public:
 		initialized = FALSE;
 		mChrome = NULL;
 		mNativeWindow = NULL;
-		InitializeCriticalSection(&eventHeadLock);
-		eventRegCount = 0;
-		eventHead = NULL;
 		allowClose = FALSE;
 	}
 	~PrivateData()
 	{
-		DeleteCriticalSection(&eventHeadLock);
 	}
 
 	WebBrowserChrome * mChrome;
@@ -46,10 +28,6 @@ public:
 	nsCOMPtr<nsIDOMWindow> mDOMWindow;
 	nsCOMPtr<nsIProxyObjectManager> nsIPO;
 	PrivateData * next;
-
-	DWORD eventRegCount;
-	EventRegistration * eventHead;
-	CRITICAL_SECTION eventHeadLock;
 
 	JSContext * mContext;
 };
