@@ -1,6 +1,17 @@
 #include "stdafx.h"
 #include <commdlg.h>
 
+UINT_PTR CALLBACK OFN_Hook(HWND hDlg, UINT uiMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch(uiMsg)
+	{
+	case WM_INITDIALOG:
+		SetForegroundWindow(hDlg);
+		break;
+	}
+	return 0;
+}
+
 JSBool openfiledlg(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSObject * filterArray = NULL;
@@ -53,6 +64,8 @@ JSBool openfiledlg(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	ofn.lpstrInitialDir = initialDirectory;
 	ofn.lpstrTitle = dlgTitle;
 	ofn.lpstrDefExt = defaultExtension;
+	ofn.lpfnHook = OFN_Hook;
+	ofn.Flags = OFN_ENABLEHOOK | OFN_EXPLORER;
 	jsrefcount rCount = JS_SuspendRequest(cx);
 	BOOL ok;
 	if(save)

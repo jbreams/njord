@@ -58,7 +58,7 @@ CAPTION "Imaging Progress"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     CONTROL         "",IDC_PROGRESS,"msctls_progress32",WS_BORDER,7,28,303,14
-    LTEXT           "",IDC_STATIC2,7,53,303,8
+    CONTROL         "",IDC_STATIC2,"Static",SS_LEFTNOWORDWRAP | SS_PATHELLIPSIS | WS_GROUP,7,53,303,8
     LTEXT           "",IDC_STATIC3,7,66,303,8
     LTEXT           "Imaging in progress...",IDC_STATIC1,7,13,287,8
 END
