@@ -157,6 +157,16 @@ JSBool wimg_delete_image(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	*rval = WIMDeleteImage(wimFile, imageIndex) ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
+
+JSClass wimImageClass = {
+	"WIMImage",  /* name */
+    JSCLASS_HAS_PRIVATE,  /* flags */
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, wimcleanup,
+    JSCLASS_NO_OPTIONAL_MEMBERS
+};
+JSObject * wimImageProto;
+
 JSBool wimg_capture_image(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSString * path;
@@ -176,20 +186,19 @@ JSBool wimg_capture_image(JSContext * cx, JSObject * obj, uintN argc, jsval * ar
 		return JS_TRUE;
 	}
 	jsrefcount rCount = JS_SuspendRequest(cx);
-	*rval = WIMCaptureImage(JS_GetPrivate(cx, obj), (LPWSTR)JS_GetStringChars(path), captureFlags) ? JSVAL_TRUE : JSVAL_FALSE;
+	HANDLE newImage = WIMCaptureImage(JS_GetPrivate(cx, obj), (LPWSTR)JS_GetStringChars(path), captureFlags);
 	JS_ResumeRequest(cx, rCount);
+	if(newImage == NULL)
+		*rval = JSVAL_FALSE;
+	else
+	{
+		JSObject * newImageObj = JS_NewObject(cx, &wimImageClass, wimImageProto, obj);
+		*rval = OBJECT_TO_JSVAL(newImageObj);
+		JS_SetPrivate(cx, newImageObj, newImage);
+	}
 	JS_EndRequest(cx);
 	return JS_TRUE;
 }
-
-JSClass wimImageClass = {
-	"WIMImage",  /* name */
-    JSCLASS_HAS_PRIVATE,  /* flags */
-    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, wimcleanup,
-    JSCLASS_NO_OPTIONAL_MEMBERS
-};
-JSObject * wimImageProto;
 
 JSBool wimg_load_image(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {

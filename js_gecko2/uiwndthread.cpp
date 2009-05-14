@@ -12,7 +12,6 @@
 
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsIDOMEventTarget.h"
 #include "nsIDOMWindow2.h"
 #include "nsIURI.h"
 #include "nsIWeakReference.h"
@@ -27,7 +26,6 @@
 #include "nsIWindowCreator2.h"
 #include "nsIWindowWatcher.h"
 #include "js_gecko2.h"
-#include "domeventhandler.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsProfileDirServiceProvider.h"
 
@@ -300,7 +298,7 @@ DWORD UiThread(LPVOID lpParam)
 				curView->mChrome->GetWebBrowser(getter_AddRefs(curView->mBrowser));
 				SetWindowLongPtrW(nWnd, GWLP_USERDATA, (LONG_PTR)curView->mChrome);
 				curView->mDOMWindow = do_GetInterface(curView->mBrowser);
-				curView->mDOMListener = new DOMEventListener(curView);
+		
 				curView->mChrome->mAllowClose = curView->allowClose;
 				curView->initialized = TRUE;
 			}
