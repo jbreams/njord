@@ -190,8 +190,9 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	LPSTR uri;
+	LPWSTR target = NULL, eventName = NULL;
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "s", &uri))
+	if(!JS_ConvertArguments(cx, argc, argv, "s /W W", &uri))
 	{
 		JS_ReportError(cx, "Error parsing arguments in g2_load_uri");
 		JS_EndRequest(cx);
@@ -199,7 +200,6 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	}
 	JS_EndRequest(cx);
 
-	nsresult rv;
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	mPrivate->mDOMListener->UnregisterAll();
 	nsCOMPtr<nsIWebBrowser> mBrowser;
@@ -207,6 +207,24 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	nsCOMPtr<nsIWebNavigation> mWebNavigation = do_QueryInterface(mBrowser);
 	nsresult result = mWebNavigation->LoadURI(NS_ConvertUTF8toUTF16(uri).get(), nsIWebNavigation::LOAD_FLAGS_NONE, NULL, NULL, NULL);
 	*rval = result == NS_OK ? JSVAL_TRUE : JSVAL_FALSE;
+	if(target != NULL && eventName != NULL)
+	{
+		nsCOMPtr<nsIDOMDocument> doc;
+		mPrivate->mDOMWindow->GetDocument(getter_AddRefs(doc));
+		nsCOMPtr<nsIDOMElement> element;
+		if(doc->GetElementById(nsDependentString(target), getter_AddRefs(element)) == NS_OK)
+		{
+			nsCOMPtr<nsIDOMNode> eventTarget = do_QueryInterface(element);
+			if(!mPrivate->mDOMListener->RegisterEvent(eventTarget.get(), eventName, NULL))
+			{
+				*rval = JSVAL_FALSE;
+				return JS_TRUE;
+			}
+			*rval = mPrivate->mDOMListener->WaitForSingleEvent(eventTarget.get(), eventName, INFINITE) ? JSVAL_TRUE : JSVAL_FALSE;
+		}
+		else
+			*rval = JSVAL_FALSE;		
+	}
 	return JS_TRUE;
 }
 

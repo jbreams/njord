@@ -19,6 +19,12 @@ MatchEntry::~MatchEntry()
 BOOL MatchEntry::Match(LPWSTR target, LPWSTR patternStr = NULL)
 {
 	enum State { Exact, Any, AnyRepeat };
+	if(fileName)
+	{
+		LPWSTR newTarget = wcsrchr(target, TEXT('\\'));
+		if(newTarget)
+			target = newTarget;
+	}
 
 	LPWSTR s = target, p = (patternStr == NULL ? matchString : patternStr), q = NULL;
 	if(fileName == TRUE)
