@@ -80,6 +80,8 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		Sleep(50);
 	}
 	
+	newPrivateData->mDOMListener = new DOMEventListener(newPrivateData);
+	newPrivateData->mDOMListener->AddRef();
 	ShowWindow(newPrivateData->mNativeWindow, SW_SHOW);
 	newPrivateData->nsIPO = do_GetService(NS_XPCOMPROXY_CONTRACTID, &rv);
 	nsCOMPtr<nsIWebBrowser> browser;
@@ -92,7 +94,6 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	return JS_TRUE;
 }
 
-void UnregisterEvents(PrivateData * mPrivate);
 extern JSObject * lDOMNodeProto;
 extern JSClass lDOMNodeClass;
 
@@ -167,6 +168,8 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 		mElement->QueryInterface(NS_GET_IID(nsIDOMNode), (void**)&mNode);
 		mElement->Release();
 		document->Release();
+		if(action == NULL)
+			action = TEXT("click");
 		if(!mPrivate->mDOMListener->RegisterEvent(mNode, action, NULL))
 		{
 			mNode->Release();
@@ -210,6 +213,7 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 JSBool g2_destroy(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
+	mPrivate->mDOMListener->Release();
 	EnterCriticalSection(&viewsLock);
 	mPrivate->destroying = TRUE;
 	LeaveCriticalSection(&viewsLock);
@@ -271,12 +275,6 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 
 	return TRUE;
 }
-/*
-BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
-{
-	return TRUE;
-}
-*/
 #ifdef __cplusplus
 }
 #endif

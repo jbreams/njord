@@ -32,6 +32,7 @@ JSBool win32_messagebox(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 		JS_ReportError(cx, "Unable to parse arguments for win32_messagebox");
 		return JS_FALSE;
 	}
+	type |= MB_TOPMOST | MB_SETFOREGROUND;
 
 	DWORD errorCode = 0;
 	if(title != NULL)

@@ -302,7 +302,7 @@ JSBool g2_wait_for_stuff(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	DWORD timeOut = INFINITE;
 	JSObject * nodeObj = NULL;
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "W o/ u", &domEvent, &nodeObj, &timeOut))
+	if(!JS_ConvertArguments(cx, argc, argv, "o W/ u", &nodeObj, &domEvent, &timeOut))
 	{
 		JS_ReportError(cx, "Error parsing arguments in waitforstuff.");
 		JS_EndRequest(cx);
