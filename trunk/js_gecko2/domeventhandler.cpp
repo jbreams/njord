@@ -203,15 +203,16 @@ BOOL DOMEventListener::WaitForSingleEvent(nsIDOMNode *target, LPWSTR type, DWORD
 			break;
 		curEr = curEr->next;
 	}
+	BOOL retval = FALSE;
 	if(curEr != NULL)
-		DuplicateHandle(GetCurrentProcess(), curEr->windowsEvent, GetCurrentProcess(), &waitForMe, SYNCHRONIZE, FALSE, 0);
+		retval = DuplicateHandle(GetCurrentProcess(), curEr->windowsEvent, GetCurrentProcess(), &waitForMe, SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, 0);
 	LeaveCriticalSection(&headLock);
 	realTarget->Release();
 
 	if(waitForMe == NULL)
 		return FALSE;
 
-	BOOL retval = FALSE;
+	retval = FALSE;
 	if(WaitForSingleObject(waitForMe, timeout) == WAIT_OBJECT_0)
 		retval = TRUE;
 	ResetEvent(waitForMe);
@@ -229,7 +230,7 @@ BOOL DOMEventListener::WaitForAllEvents(DWORD timeout, BOOL waitAll, JSObject **
 	EventRegistration * curReg = head;
 	while(curReg != NULL)
 	{
-		if(DuplicateHandle(GetCurrentProcess(), curReg->windowsEvent, GetCurrentProcess(), &handles[i], SYNCHRONIZE, FALSE, 0))
+		if(DuplicateHandle(GetCurrentProcess(), curReg->windowsEvent, GetCurrentProcess(), &handles[i], SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, 0))
 			i++;
 		curReg = curReg->next;
 	}

@@ -223,7 +223,7 @@ JSBool lookupAccountName(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 JSBool GetLastNetErrorMessage(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	DWORD dwLastError = NERR_Success;
-	HANDLE hModule;
+	HANDLE hModule = GetModuleHandle(NULL);
 	if(argc < 1 || !JSVAL_IS_NUMBER(*argv))
 	{
 		JS_ReportError(cx, "Must provide valid error code to GetLastNetErrorMessage");

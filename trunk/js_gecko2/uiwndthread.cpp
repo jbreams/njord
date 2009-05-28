@@ -237,11 +237,22 @@ LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			}
 		}
 		break;
+	case WM_SHOWWINDOW:
+		if(mChrome)
+		{
+			nsCOMPtr<nsIWebBrowserFocus> mFocus = do_QueryInterface(mBrowser);
+			if((BOOL)wParam)
+				mFocus->Activate();
+			else
+				mFocus->Deactivate();
+		}
+		break;
 	case WM_CLOSE:
 		if(mChrome) {
 			if(mChrome->mAllowClose)
 				DestroyWindow(hWnd);
 		}
+		break;
 	case WM_DESTROY:
 		if(mChrome) {
 			nsCOMPtr<nsIBaseWindow> basewindow = do_QueryInterface(mBrowser);
@@ -249,7 +260,7 @@ LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		}
 		break;
 	case WM_ERASEBKGND:
-		if(mChrome)
+		if(mChrome && mChrome->mDocumentLoaded)
 			return 1;
 	default:
 		return ::DefWindowProc(hWnd, message, wParam, lParam);
@@ -298,6 +309,10 @@ DWORD UiThread(LPVOID lpParam)
 				curView->mChrome->GetWebBrowser(getter_AddRefs(curView->mBrowser));
 				SetWindowLongPtrW(nWnd, GWLP_USERDATA, (LONG_PTR)curView->mChrome);
 				curView->mDOMWindow = do_GetInterface(curView->mBrowser);
+
+				SetFocus(nWnd);
+				nsCOMPtr<nsIWebBrowserFocus> mFocus = do_QueryInterface(curView->mBrowser);
+				mFocus->Activate();
 		
 				curView->mChrome->mAllowClose = curView->allowClose;
 				curView->initialized = TRUE;
@@ -318,7 +333,7 @@ DWORD UiThread(LPVOID lpParam)
 			DispatchMessage(&msg);
 		}
 		else
-			Sleep(100);
+			Sleep(10);
 	}
 
 	NS_LogInit();

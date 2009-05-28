@@ -9,40 +9,8 @@ struct PipeReaderInfo {
 	LPBYTE bufferToUse;
 	DWORD bufferSize;
 	DWORD used;
-	HANDLE stopEvent;
+	DWORD toRead;
 };
-
-DWORD APIENTRY ExecPipeReader(LPVOID param)
-{
-	struct PipeReaderInfo * pri = (struct PipeReaderInfo*)param;
-	pri->bufferToUse = (LPBYTE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 4096);
-	pri->bufferSize = 4096;
-	pri->used = 0;
-	BOOL running = TRUE;
-	DWORD toRead = 0;
-	Sleep(500);
-	while(running)
-	{
-		if(toRead > 0)
-		{
-			if(pri->used + toRead >= pri->bufferSize)
-			{
-				pri->bufferSize += (toRead >1024 ? toRead + 256 : 1024);
-				pri->bufferToUse = (LPBYTE)HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, pri->bufferToUse, pri->bufferSize);
-			}
-			if(ReadFile(pri->pipeToRead, (LPVOID)(pri->bufferToUse + pri->used), toRead, &toRead, NULL))
-				pri->used += toRead;
-		}
-		
-		PeekNamedPipe(pri->pipeToRead, NULL, 0, NULL, &toRead, NULL);
-		if(WaitForSingleObject(pri->stopEvent, 500) == WAIT_OBJECT_0)
-		{
-			if(toRead == 0)
-				running = FALSE;
-		}
-	}
-	return 0;
-}
 
 JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
@@ -65,33 +33,35 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	}
 
 	LPWSTR appName = NULL;
-	HANDLE stdOutRead = NULL, stdOutWrite = NULL, stdErrorRead = NULL, stdErrorWrite = NULL, threadHandles[3];
+	HANDLE stdOutRead = NULL, stdOutWrite = NULL, stdErrorRead = NULL, stdErrorWrite = NULL;
 	PROCESS_INFORMATION pi;
 	STARTUPINFO si;
-	SECURITY_ATTRIBUTES * sa = NULL;
-	struct PipeReaderInfo * outReader = NULL, *errReader = NULL;
+	struct PipeReaderInfo readers[2];
 
 	memset(&si, 0, sizeof(si));
 	memset(&pi, 0, sizeof(pi));
 
 	if(jsCapture == TRUE && jsWait == TRUE)
 	{
-		sa = (SECURITY_ATTRIBUTES*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SECURITY_ATTRIBUTES));
-		sa->bInheritHandle = TRUE;
-		sa->nLength = sizeof(*sa);
-		CreatePipe(&stdOutRead, &stdOutWrite, sa, 0);
-		CreatePipe(&stdErrorRead, &stdErrorWrite, sa, 0);
+		SECURITY_ATTRIBUTES sa;
+		sa.bInheritHandle = TRUE;
+		sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+		sa.lpSecurityDescriptor = NULL;
+		CreatePipe(&stdOutRead, &stdOutWrite, &sa, 0);
+		CreatePipe(&stdErrorRead, &stdErrorWrite, &sa, 0);
 		si.hStdError = stdErrorWrite;
 		si.hStdOutput = stdOutWrite;
 		si.dwFlags |= STARTF_USESTDHANDLES;
 
-		outReader = (struct PipeReaderInfo*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(struct PipeReaderInfo));
-		errReader = (struct PipeReaderInfo*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(struct PipeReaderInfo));
-
-		outReader->pipeToRead = stdOutRead;
-		errReader->pipeToRead = stdErrorRead;
-		threadHandles[0] = CreateThread(sa, 0, ExecPipeReader, outReader, 0, NULL);
-		threadHandles[1] = CreateThread(sa, 0, ExecPipeReader, errReader, 0, NULL);
+		memset(readers, 0, sizeof(struct PipeReaderInfo) * 2);
+		readers[0].pipeToRead = stdOutRead;
+		readers[0].bufferToUse = (LPBYTE)JS_malloc(cx, 4096);
+		memset(readers[0].bufferToUse, 0, 4096);
+		readers[0].bufferSize = 4096;
+		readers[1].pipeToRead = stdErrorRead;
+		readers[1].bufferToUse = (LPBYTE)JS_malloc(cx, 4096);
+		memset(readers[1].bufferToUse, 0, 4096);
+		readers[1].bufferSize = 4096;
 	}
 
 	if(jsHide == TRUE)
@@ -106,7 +76,10 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	if(!CreateProcessW(appName, (LPWSTR)JS_GetStringChars(jsCmdLine), NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
 	{
 		*rval = JSVAL_FALSE;
-		goto functionEnd;
+		if(jsCapture)
+			goto functionEnd;
+		else
+			return JS_TRUE;
 	}
 
 	if(jsWait == FALSE)
@@ -118,31 +91,62 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		return JS_TRUE;
 	}
 
-	jsrefcount rCount = JS_SuspendRequest(cx);
-	if(jsCapture == TRUE)
+	if(!jsCapture)
 	{
-		outReader->stopEvent = pi.hProcess;
-		errReader->stopEvent = pi.hProcess;
-		threadHandles[2] = pi.hProcess;
-		WaitForMultipleObjects(2, threadHandles, TRUE, INFINITE);
+		if(WaitForSingleObject(pi.hProcess, INFINITE) != WAIT_OBJECT_0)
+			*rval = JSVAL_FALSE;
+		else
+		{
+			DWORD exitCode;
+			GetExitCodeProcess(pi.hProcess, &exitCode);
+			JS_NewNumberValue(cx, exitCode, rval);
+		}
+		JS_EndRequest(cx);
+		return JS_TRUE;
 	}
-	else
-		WaitForSingleObject(pi.hProcess, INFINITE);
+
+	jsrefcount rCount = JS_SuspendRequest(cx);
+	
+	BOOL running = TRUE;
+	WaitForSingleObject(pi.hProcess, 500);
+	BOOL moreData = TRUE;
+	while(moreData)
+	{
+		moreData = FALSE;
+		for(BYTE x = 0; x < 2; x++)
+		{
+			if(readers[x].toRead > 0)
+			{
+				if(readers[x].used + readers[x].toRead >= readers[x].bufferSize)
+				{
+					readers[x].bufferSize += (readers[x].toRead > 1024 ? readers[x].toRead + 256 : 1024);
+					readers[x].bufferToUse = (LPBYTE)JS_realloc(cx, readers[x].bufferToUse, readers[x].bufferSize);
+					memset(readers[x].bufferToUse + readers[x].used, 0, readers[x].bufferSize - readers[x].used);
+				}
+				if(ReadFile(readers[x].pipeToRead, (LPVOID)(readers[x].bufferToUse + readers[x].used), readers[x].toRead, &readers[x].toRead, NULL))
+					readers[x].used += readers[x].toRead;
+			}
+
+			PeekNamedPipe(readers[x].pipeToRead, NULL, 0, NULL, &readers[x].toRead, NULL);
+			if(readers[x].toRead > 0 && moreData == FALSE)
+				moreData = TRUE;
+		}
+		if(WaitForSingleObject(pi.hProcess, 500) != WAIT_OBJECT_0)
+			moreData = TRUE;
+	}
+
 	JS_ResumeRequest(cx, rCount);
 
 	JSString * stdOutString = NULL, * stdErrString = NULL;
-	if(jsCapture == TRUE)
+	if(IsTextUnicode(readers[0].bufferToUse, readers[0].used, NULL))
 	{
-		if(IsTextUnicode(outReader->bufferToUse, outReader->used, NULL))
-		{
-			stdOutString = JS_NewUCStringCopyN(cx, (jschar*)outReader->bufferToUse, outReader->used);
-			stdErrString = JS_NewUCStringCopyN(cx, (jschar*)errReader->bufferToUse, errReader->used);
-		}
-		else
-		{
-			stdOutString = JS_NewStringCopyN(cx, (char*)outReader->bufferToUse, outReader->used);
-			stdErrString = JS_NewStringCopyN(cx, (char*)errReader->bufferToUse, errReader->used);
-		}
+		stdOutString = JS_NewUCString(cx, (jschar*)readers[0].bufferToUse, readers[0].used);
+		stdErrString = JS_NewUCString(cx, (jschar*)readers[1].bufferToUse, readers[1].used);
+	}
+	else
+	{
+		stdOutString = JS_NewString(cx, (char*)readers[0].bufferToUse, readers[0].used);
+		stdErrString = JS_NewString(cx, (char*)readers[1].bufferToUse, readers[1].used);
 	}
 	
 	DWORD exitCode = STILL_ACTIVE;
@@ -172,14 +176,6 @@ functionEnd:
 		CloseHandle(stdOutWrite);
 		CloseHandle(stdErrorRead);
 		CloseHandle(stdErrorWrite);
-		HeapFree(GetProcessHeap(), 0, sa);
-	}
-	if(outReader != NULL)
-	{
-		HeapFree(GetProcessHeap(), 0, outReader->bufferToUse);
-		HeapFree(GetProcessHeap(), 0, errReader->bufferToUse);
-		HeapFree(GetProcessHeap(), 0, outReader);
-		HeapFree(GetProcessHeap(), 0, errReader);
 	}
 	return JS_TRUE;
 }

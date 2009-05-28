@@ -152,7 +152,6 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	wbStream->OpenStream(uri, nsDependentCString(contentType));
 	wbStream->AppendToStream((PRUint8*)dataToLoad, strlen(dataToLoad));
 	wbStream->CloseStream();
-
 	if(target != NULL && !JSVAL_IS_NULL(argv[2]))
 	{
 		nsIDOMDocument * document;
@@ -259,6 +258,16 @@ JSBool g2_get_dom(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 	return JS_TRUE;
 }
 
+JSBool g2_repaint(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIWebBrowser> mBrowser;
+	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mBrowser));
+	nsCOMPtr<nsIBaseWindow> mBaseWindow = do_QueryInterface(mBrowser);
+	mBaseWindow->Repaint(PR_TRUE);
+	return JS_TRUE;
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -275,6 +284,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "WaitForThings", g2_wait_for_things, 2, 0 },
 		{ "GetInput", g2_get_input_value, 1, 0 },
 		{ "GetElementByID", g2_get_element_by_id, 1, 0 },
+		{ "Repaint", g2_repaint, 0, 0 },
 		{ 0 }
 	};
 

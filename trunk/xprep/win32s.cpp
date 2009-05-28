@@ -228,8 +228,11 @@ JSBool win32_sleep(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 		return JS_FALSE;
 	}
 	DWORD nTimeout = 0;
+	JS_BeginRequest(cx);
 	JS_ValueToECMAUint32(cx, *argv, &nTimeout);
+	jsrefcount rCount = JS_SuspendRequest(cx);
 	Sleep(nTimeout);
+	JS_ResumeRequest(cx, rCount);
 	return JS_TRUE;
 }
 
