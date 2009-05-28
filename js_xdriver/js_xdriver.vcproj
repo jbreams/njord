@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="js_gecko2"
-	ProjectGUID="{A10013D7-B505-4EB5-A524-1841BBBA97EB}"
-	RootNamespace="js_gecko2"
+	Name="js_xdriver"
+	ProjectGUID="{F5C1D174-61F9-4309-9049-E8D9B3A14669}"
+	RootNamespace="js_xdriver"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="196613"
 	>
@@ -41,12 +41,11 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\spidermonkey\include;&quot;..\xulrunner-sdk\include\docshell&quot;;&quot;..\xulrunner-sdk\include\xulapp&quot;;&quot;..\xulrunner-sdk\include\necko&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\widget&quot;;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\pref&quot;;&quot;..\xulrunner-sdk\include\gfx&quot;;&quot;..\xulrunner-sdk\include\embed_base&quot;;&quot;..\xulrunner-sdk\include\webbrwsr&quot;;&quot;..\xulrunner-sdk\include\xpconnect&quot;;&quot;..\xulrunner-sdk\include\profdirserviceprovider&quot;;&quot;..\xulrunner-sdk\include\nspr&quot;;&quot;..\xulrunner-sdk\include\string&quot;;&quot;..\xulrunner-sdk\include\uriloader&quot;;&quot;..\xulrunner-sdk\include\profile&quot;;&quot;..\xulrunner-sdk\include\windowwatcher&quot;"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS;XPCOM_GLUE=1;XP_WIN=1"
-				MinimalRebuild="false"
-				BasicRuntimeChecks="0"
+				AdditionalIncludeDirectories="..\spidermonkey\include;difxapi"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JS_XDRIVER_EXPORTS"
+				MinimalRebuild="true"
+				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
-				TreatWChar_tAsBuiltInType="false"
 				UsePrecompiledHeader="2"
 				WarningLevel="3"
 				DebugInformationFormat="4"
@@ -62,7 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="..\spidermonkey\$(ConfigurationName)\js32.lib ..\xulrunner-sdk\lib\xpcomglue.lib"
+				AdditionalDependencies="difxapi\difxapi.lib comctl32.lib msi.lib ..\spidermonkey\$(ConfigurationName)\js32.lib"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -117,11 +116,10 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="..\spidermonkey\include;&quot;..\xulrunner-sdk\include\docshell&quot;;&quot;..\xulrunner-sdk\include\xulapp&quot;;&quot;..\xulrunner-sdk\include\necko&quot;;&quot;..\xulrunner-sdk\include\xpcom&quot;;&quot;..\xulrunner-sdk\include\widget&quot;;&quot;..\xulrunner-sdk\include\dom&quot;;&quot;..\xulrunner-sdk\include\pref&quot;;&quot;..\xulrunner-sdk\include\gfx&quot;;&quot;..\xulrunner-sdk\include\embed_base&quot;;&quot;..\xulrunner-sdk\include\webbrwsr&quot;;&quot;..\xulrunner-sdk\include\xpconnect&quot;;&quot;..\xulrunner-sdk\include\profdirserviceprovider&quot;;&quot;..\xulrunner-sdk\include\nspr&quot;;&quot;..\xulrunner-sdk\include\string&quot;;&quot;..\xulrunner-sdk\include\uriloader&quot;;&quot;..\xulrunner-sdk\include\profile&quot;;&quot;..\xulrunner-sdk\include\windowwatcher&quot;"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;JS_GECKO2_EXPORTS;XPCOM_GLUE=1;XP_WIN=1"
+				AdditionalIncludeDirectories="..\spidermonkey\include;difxapi"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;JS_XDRIVER_EXPORTS"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
-				TreatWChar_tAsBuiltInType="false"
 				UsePrecompiledHeader="2"
 				WarningLevel="3"
 				DebugInformationFormat="3"
@@ -137,7 +135,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="..\spidermonkey\$(ConfigurationName)\js32.lib ..\xulrunner-sdk\lib\xpcomglue.lib"
+				AdditionalDependencies="difxapi\difxapi.lib comctl32.lib msi.lib ..\spidermonkey\$(ConfigurationName)\js32.lib"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -199,23 +197,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\domeventhandler.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\domnode.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\embeddingsetup.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\inputvalue.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\jsexports.cpp"
+				RelativePath=".\js_xdriver.cpp"
 				>
 			</File>
 			<File
@@ -238,32 +220,12 @@
 					/>
 				</FileConfiguration>
 			</File>
-			<File
-				RelativePath=".\uiwndthread.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\WebBrowserChrome.cpp"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
-			<File
-				RelativePath=".\domeventhandler.h"
-				>
-			</File>
-			<File
-				RelativePath=".\js_gecko2.h"
-				>
-			</File>
-			<File
-				RelativePath=".\privatedata.h"
-				>
-			</File>
 			<File
 				RelativePath=".\resource.h"
 				>
@@ -276,16 +238,16 @@
 				RelativePath=".\targetver.h"
 				>
 			</File>
-			<File
-				RelativePath=".\WebBrowserChrome.h"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
+			<File
+				RelativePath=".\js_xdriver.rc"
+				>
+			</File>
 		</Filter>
 		<File
 			RelativePath=".\ReadMe.txt"

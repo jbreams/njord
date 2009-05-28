@@ -139,6 +139,7 @@ JSBool wmi_open_instance(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	}
 
 	JSObject * retObj = JS_NewObject(cx, &wmiClass, wmiClassProto, obj);
+	*rval = OBJECT_TO_JSVAL(retObj);
 	JS_SetPrivate(cx, retObj, classObj);
 	JS_EndRequest(cx);
 	return JS_TRUE;
@@ -232,29 +233,8 @@ JSBool wmi_enum_props(JSContext * cx, JSObject * obj)
 	return JS_TRUE;
 }
 
-JSBool wmi_getter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
+JSBool processValue(JSContext * cx, JSObject * obj, CIMTYPE type, _variant_t & outVar, jsval * vp)
 {
-	JS_BeginRequest(cx);
-	IWbemClassObject * classObj = (IWbemClassObject*)JS_GetPrivate(cx, obj);
-	JSString * name = JS_ValueToString(cx, idval);
-	_variant_t outVar;
-	CIMTYPE type;
-
-	HRESULT result = classObj->Get((LPWSTR)JS_GetStringChars(name), 0, outVar.GetAddress(), &type, NULL);
-	if(result != WBEM_S_NO_ERROR)
-	{
-		SetLastError(result);
-		*vp = JSVAL_VOID;
-		JS_EndRequest(cx);
-		return JS_TRUE;
-	}
-
-	if(outVar.GetVARIANT().vt == VT_NULL)
-	{
-		*vp = JSVAL_NULL;
-		JS_EndRequest(cx);
-		return JS_TRUE;
-	}
 	switch(type)
 	{
 	case CIM_SINT8:
@@ -307,9 +287,57 @@ JSBool wmi_getter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 		}
 		break;
 	default:
-		*vp = JSVAL_VOID;
-		break;
+		return JS_FALSE;
 	}
+	return JS_TRUE;
+}
+
+JSBool wmi_getter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
+{
+	JS_BeginRequest(cx);
+	IWbemClassObject * classObj = (IWbemClassObject*)JS_GetPrivate(cx, obj);
+	JSString * name = JS_ValueToString(cx, idval);
+	_variant_t outVar;
+	CIMTYPE type;
+
+	HRESULT result = classObj->Get((LPWSTR)JS_GetStringChars(name), 0, outVar.GetAddress(), &type, NULL);
+	if(result != WBEM_S_NO_ERROR)
+	{
+		SetLastError(result);
+		*vp = JSVAL_VOID;
+		JS_EndRequest(cx);
+		return JS_TRUE;
+	}
+
+	if(outVar.vt == VT_NULL)
+	{
+		*vp = JSVAL_NULL;
+		JS_EndRequest(cx);
+		return JS_TRUE;
+	}
+	else if(type & CIM_FLAG_ARRAY)
+	{
+		SAFEARRAY * mArray = outVar.GetVARIANT().parray;
+		VARTYPE mType;
+		SafeArrayGetVartype(mArray, &mType);
+		JSObject * retArray = JS_NewArrayObject(cx, 0, NULL);
+		*vp = OBJECT_TO_JSVAL(retArray);
+
+		for(LONG i = 0; i < mArray->rgsabound->cElements; i++)
+		{
+			void * curElement;
+			SafeArrayGetElement(mArray, &i, &curElement);
+			_variant_t data;
+			data = curElement;
+			data.ChangeType(mType);
+			jsval curOutVal;
+			if(processValue(cx, obj, type & (~CIM_FLAG_ARRAY), data, &curOutVal))
+				JS_DefineElement(cx, retArray, i, curOutVal, NULL, NULL, 0);
+		}
+	}
+	else
+		processValue(cx, obj, type, outVar, vp);
+
 	JS_EndRequest(cx);
 	return JS_TRUE;
 }

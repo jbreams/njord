@@ -496,44 +496,85 @@ JSBool reg_delete_subkey(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 JSBool reg_load_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	HKEY hive;
-	JSString * subKeyNameStr = NULL, * fileName;
-	LPWSTR subKeyName = NULL;
+	LPWSTR subKeyName = NULL, fileName;
 
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "u S /S", &hive, &fileName, &subKeyNameStr))
+	if(!JS_ConvertArguments(cx, argc, argv, "u W /W", &hive, &fileName, &subKeyName))
 	{
 		JS_ReportError(cx, "Error parsing arguments in reg_load_hive");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
-
-	if(subKeyNameStr != NULL)
-		subKeyName = (LPWSTR)JS_GetStringChars(subKeyNameStr); 
 	JS_EndRequest(cx);
 
-	if(RegLoadKey(hive, subKeyName, (LPWSTR)JS_GetStringChars(fileName)))
+	LUID luid;
+	int tpSize = sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES);
+	TOKEN_PRIVILEGES * tp = (TOKEN_PRIVILEGES*)malloc(tpSize);
+	memset(tp, 0, tpSize);
+	HANDLE processToken;
+	OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &processToken);
+	LookupPrivilegeValue(NULL, SE_RESTORE_NAME, &luid);
+	tp->PrivilegeCount = 2;
+	tp->Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+	tp->Privileges[0].Luid = luid;
+
+	LookupPrivilegeValue(NULL, SE_BACKUP_NAME, &luid);
+	tp->Privileges[1].Attributes = SE_PRIVILEGE_ENABLED;
+	tp->Privileges[1].Luid = luid;
+	AdjustTokenPrivileges(processToken, FALSE, tp, tpSize, NULL, NULL);
+	free(tp);
+
+	LONG errorCode = RegLoadKey(hive, subKeyName, fileName);
+	CloseHandle(processToken);
+	if(errorCode == ERROR_SUCCESS)
 		*rval = JSVAL_TRUE;
 	else
+	{
+		SetLastError(errorCode);
 		*rval = JSVAL_FALSE;
+	}
 	return JS_TRUE;
 }
 
 JSBool reg_unload_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	HKEY hive;
-	JSString * subKeyNameStr;
 	LPWSTR subKeyName = NULL;
 
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "u S", &hive, &subKeyNameStr))
+	if(!JS_ConvertArguments(cx, argc, argv, "u W", &hive, &subKeyName))
 	{
 		JS_ReportError(cx, "Error parsing arguments in reg_load_hive");
 		return JS_FALSE;
 	}
 	JS_EndRequest(cx);
-	if(RegUnLoadKey(hive, (LPWSTR)JS_GetStringChars(subKeyNameStr)))
+
+	LUID luid;
+	int tpSize = sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES);
+	TOKEN_PRIVILEGES * tp = (TOKEN_PRIVILEGES*)malloc(tpSize);
+	memset(tp, 0, tpSize);
+	HANDLE processToken;
+	OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &processToken);
+	LookupPrivilegeValue(NULL, SE_RESTORE_NAME, &luid);
+	tp->PrivilegeCount = 2;
+	tp->Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+	tp->Privileges[0].Luid = luid;
+
+	LookupPrivilegeValue(NULL, SE_BACKUP_NAME, &luid);
+	tp->Privileges[1].Attributes = SE_PRIVILEGE_ENABLED;
+	tp->Privileges[1].Luid = luid;
+	AdjustTokenPrivileges(processToken, FALSE, tp, tpSize, NULL, NULL);
+	free(tp);
+
+	LONG errorCode = RegUnLoadKey(hive, subKeyName);
+	CloseHandle(processToken);
+	if(errorCode == ERROR_SUCCESS)
 		*rval = JSVAL_TRUE;
 	else
+	{
+		SetLastError(errorCode);
 		*rval = JSVAL_FALSE;
+	}
 	return JS_TRUE;
 }
 

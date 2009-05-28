@@ -42,13 +42,36 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	if(::_tcslen(lpCmdLine) == 0)
 		return 1;
 
-	rt = JS_NewRuntime(0x4000000);
+	DWORD runtimeSize = 0x4000000;
+	DWORD stackSize = 0x2000;
+	HKEY nJordSettingsKey = NULL;
+	RegOpenKey(HKEY_LOCAL_MACHINE, TEXT("Software\\ReamsTronics\\nJord"), &nJordSettingsKey);
+	if(nJordSettingsKey)
+	{
+		DWORD value;
+		DWORD size = sizeof(DWORD);
+		if(RegQueryValueEx(nJordSettingsKey, TEXT("RuntimeSize"), NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
+			runtimeSize = value;
+		if(RegQueryValueEx(nJordSettingsKey, TEXT("StackSize"), NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
+			stackSize = value;
+
+		TCHAR libPath[MAX_PATH];
+		size = MAX_PATH * sizeof(TCHAR);
+		if(RegQueryValueEx(nJordSettingsKey, TEXT("LibPath"), NULL, NULL, (LPBYTE)libPath, &size) == ERROR_SUCCESS)
+			SetDllDirectory(libPath);
+		size = MAX_PATH * sizeof(TCHAR);
+		if(RegQueryValueEx(nJordSettingsKey, TEXT("WorkingPath"), NULL, NULL, (LPBYTE)libPath, &size) == ERROR_SUCCESS)
+			SetCurrentDirectory(libPath);
+		RegCloseKey(nJordSettingsKey);
+	}
+
+	rt = JS_NewRuntime(runtimeSize);
 	if(rt == NULL)
 	{
 		MessageBox(NULL, TEXT("Error initializing JS runtime."), TEXT("nJord Error"), MB_OK);
 		return 2;
 	}
-	cx = JS_NewContext(rt, 0x1000);
+	cx = JS_NewContext(rt, stackSize);
 	if(cx == NULL)
 	{
 		MessageBox(NULL, TEXT("Error creating JS context."), TEXT("nJord Error"), MB_OK);
@@ -69,7 +92,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 		MessageBox(NULL, TEXT("Error initializing standard JS classes."), TEXT("nJord Error"), MB_OK);
 		return 2;
 	}
-
 
 	InitNativeLoad(cx, global);
 	InitExec(cx, global);

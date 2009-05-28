@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "njord.h"
+#include <Wincrypt.h>
+#pragma comment(lib, "crypt32.lib")
 
 LPWSTR LoadFile(LPTSTR fileName)
 {
