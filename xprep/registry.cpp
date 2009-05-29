@@ -493,6 +493,37 @@ JSBool reg_delete_subkey(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	return JS_TRUE;
 }
 
+HANDLE AdjustPrivsForHiveOp()
+{
+	LUID luid;
+	BOOL ok = TRUE;
+	int tpSize = sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES);
+	TOKEN_PRIVILEGES * tp = (TOKEN_PRIVILEGES*)malloc(tpSize);
+	memset(tp, 0, tpSize);
+	HANDLE processToken;
+	ok = OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &processToken);
+	if(!ok)
+		goto funcEnd;
+	ok = LookupPrivilegeValueW(NULL, SE_RESTORE_NAME, &luid);
+	if(!ok)
+		goto funcEnd;
+	tp->PrivilegeCount = 2;
+	tp->Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+	tp->Privileges[0].Luid = luid;
+
+	ok = LookupPrivilegeValueW(NULL, SE_BACKUP_NAME, &luid);
+	if(!ok)
+		goto funcEnd;
+	tp->Privileges[1].Attributes = SE_PRIVILEGE_ENABLED;
+	tp->Privileges[1].Luid = luid;
+	ok = AdjustTokenPrivileges(processToken, FALSE, tp, tpSize, NULL, NULL);
+funcEnd:
+	free(tp);
+	if(!ok)
+		return NULL;
+	return processToken;
+}
+
 JSBool reg_load_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	HKEY hive;
@@ -507,22 +538,12 @@ JSBool reg_load_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	}
 	JS_EndRequest(cx);
 
-	LUID luid;
-	int tpSize = sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES);
-	TOKEN_PRIVILEGES * tp = (TOKEN_PRIVILEGES*)malloc(tpSize);
-	memset(tp, 0, tpSize);
-	HANDLE processToken;
-	OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &processToken);
-	LookupPrivilegeValue(NULL, SE_RESTORE_NAME, &luid);
-	tp->PrivilegeCount = 2;
-	tp->Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-	tp->Privileges[0].Luid = luid;
-
-	LookupPrivilegeValue(NULL, SE_BACKUP_NAME, &luid);
-	tp->Privileges[1].Attributes = SE_PRIVILEGE_ENABLED;
-	tp->Privileges[1].Luid = luid;
-	AdjustTokenPrivileges(processToken, FALSE, tp, tpSize, NULL, NULL);
-	free(tp);
+	HANDLE processToken = AdjustPrivsForHiveOp();
+	if(processToken == NULL)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
 
 	LONG errorCode = RegLoadKey(hive, subKeyName, fileName);
 	CloseHandle(processToken);
@@ -549,22 +570,12 @@ JSBool reg_unload_hive(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 	}
 	JS_EndRequest(cx);
 
-	LUID luid;
-	int tpSize = sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES);
-	TOKEN_PRIVILEGES * tp = (TOKEN_PRIVILEGES*)malloc(tpSize);
-	memset(tp, 0, tpSize);
-	HANDLE processToken;
-	OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &processToken);
-	LookupPrivilegeValue(NULL, SE_RESTORE_NAME, &luid);
-	tp->PrivilegeCount = 2;
-	tp->Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-	tp->Privileges[0].Luid = luid;
-
-	LookupPrivilegeValue(NULL, SE_BACKUP_NAME, &luid);
-	tp->Privileges[1].Attributes = SE_PRIVILEGE_ENABLED;
-	tp->Privileges[1].Luid = luid;
-	AdjustTokenPrivileges(processToken, FALSE, tp, tpSize, NULL, NULL);
-	free(tp);
+	HANDLE processToken = AdjustPrivsForHiveOp();
+	if(processToken == NULL)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
 
 	LONG errorCode = RegUnLoadKey(hive, subKeyName);
 	CloseHandle(processToken);

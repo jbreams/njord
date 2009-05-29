@@ -15,9 +15,10 @@ JSClass global_class = {
 };
 
 DWORD branches = 0;
+DWORD branchLimit = 5000;
 JSBool BranchCallback(JSContext * cx, JSScript * script)
 {
-	if(branches++ > 5000)
+	if(branches++ > branchLimit)
 	{
 		JS_MaybeGC(cx);
 		branches = 0;
@@ -32,6 +33,12 @@ void ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 		report->errorNumber, message, report->lineno, report->linebuf, report->tokenptr);
 	MessageBoxA(NULL, messageBuf, "nJord Fatal Error", MB_OK);
 	HeapFree(GetProcessHeap(), 0, messageBuf);
+}
+
+JSBool njord_exit(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	*rval = *argv;
+	return JS_FALSE;
 }
 
 int APIENTRY _tWinMain(HINSTANCE hInstance,
@@ -54,6 +61,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 			runtimeSize = value;
 		if(RegQueryValueEx(nJordSettingsKey, TEXT("StackSize"), NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
 			stackSize = value;
+		if(RegQueryValueEx(nJordSettingsKey, TEXT("BranchesBeforeGC"), NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
+			branchLimit = value;
 
 		TCHAR libPath[MAX_PATH];
 		size = MAX_PATH * sizeof(TCHAR);
@@ -78,6 +87,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 		return 2;
 	}
 
+	JS_SetOptions(cx, JSOPTION_VAROBJFIX);
 	global = JS_NewObject(cx, &global_class, NULL, NULL);
 	if(global == NULL)
 	{
@@ -93,6 +103,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 		return 2;
 	}
 
+	JS_DefineFunction(cx, global, "Exit", njord_exit, 1, 0);
 	InitNativeLoad(cx, global);
 	InitExec(cx, global);
 	InitFile(cx, global);

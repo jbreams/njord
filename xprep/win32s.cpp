@@ -24,42 +24,53 @@ struct JSConstDoubleSpec win32MessageBoxTypes[] = {
 
 JSBool win32_messagebox(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *rval)
 {
-	JSString * caption = NULL, *title = NULL;
+	LPWSTR caption = NULL, title = NULL;
 	UINT type = MB_OK;
-
-	if(!JS_ConvertArguments(cx, argc, argv, "S /S c", &caption, &title, &type))
+	
+	JS_BeginRequest(cx);
+	if(!JS_ConvertArguments(cx, argc, argv, "W /W c", &caption, &title, &type))
 	{
 		JS_ReportError(cx, "Unable to parse arguments for win32_messagebox");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
-	type |= MB_TOPMOST | MB_SETFOREGROUND;
 
-	DWORD errorCode = 0;
-	if(title != NULL)
-		errorCode = MessageBoxW(NULL, JS_GetStringChars(caption), JS_GetStringChars(title), type);
-	else
-		errorCode = MessageBoxW(NULL, JS_GetStringChars(caption), TEXT("njord"), type);
-	return JS_NewNumberValue(cx, errorCode, rval);
+	type |= MB_TOPMOST | MB_SETFOREGROUND;
+	if(title == NULL)
+		title = TEXT("nJord");
+
+	jsrefcount rCount = JS_SuspendRequest(cx);
+	DWORD errorCode = MessageBoxW(NULL, caption, title, type);
+	JS_ResumeRequest(cx, rCount);
+	JSBool retVal = JS_NewNumberValue(cx, errorCode, rval);
+	JS_EndRequest(cx);
+	return retVal;
 }
 
 JSBool win32_getlasterror(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	return JS_NewNumberValue(cx, GetLastError(), rval);
+	JS_BeginRequest(cx);
+	JSBool retVal = JS_NewNumberValue(cx, GetLastError(), rval);
+	JS_EndRequest(cx);
+	return retVal;
 }
 
 JSBool win32_impersonateuser(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSString * username, * password, *domain = NULL;
 	DWORD logonType = LOGON32_LOGON_INTERACTIVE;
+	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "S S /S u", &username, &password, &domain, &logonType))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in ImpersonateUser");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
 	if(logonType == LOGON32_LOGON_NETWORK)
 	{
 		*rval = JSVAL_FALSE;
+		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 
@@ -68,9 +79,11 @@ JSBool win32_impersonateuser(JSContext * cx, JSObject * obj, uintN argc, jsval *
 		domainName = (LPWSTR)JS_GetStringChars(domain);
 
 	HANDLE newToken = NULL;
+	JS_YieldRequest(cx);
 	if(!LogonUser((LPWSTR)JS_GetStringChars(username), domainName, (LPWSTR)JS_GetStringChars(password), logonType, LOGON32_PROVIDER_DEFAULT, &newToken))
 	{
 		*rval = JSVAL_FALSE;
+		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 
@@ -79,6 +92,7 @@ JSBool win32_impersonateuser(JSContext * cx, JSObject * obj, uintN argc, jsval *
 	else
 		*rval = JSVAL_TRUE;
 	CloseHandle(newToken);
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -92,10 +106,12 @@ JSBool win32_getlasterrormsg(JSContext * cx, JSObject * obj, uintN argc, jsval *
 {
 	LPWSTR buffer;
 	DWORD errorCode = GetLastError();
+	JS_BeginRequest(cx);
 	if(argc > 0)
 		JS_ValueToECMAUint32(cx, argv[0], (uint32*)&errorCode);
 	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, errorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&buffer, 0, NULL);
 	JSString * retStr = JS_NewUCStringCopyZ(cx, (jschar*)buffer);
+	JS_EndRequest(cx);
 	LocalFree(buffer);
 	*rval = STRING_TO_JSVAL(retStr);
 	return JS_TRUE;
@@ -103,62 +119,68 @@ JSBool win32_getlasterrormsg(JSContext * cx, JSObject * obj, uintN argc, jsval *
 
 JSBool win32_setenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	JSString * name, * value;
+	LPWSTR name, value;
 	JSBool local = JS_TRUE, addition = JS_TRUE;
 
-	if(!JS_ConvertArguments(cx, argc, argv, "S S /b b", &name, &value, &addition, &local))
+	JS_BeginRequest(cx);
+	if(!JS_ConvertArguments(cx, argc, argv, "W W /b b", &name, &value, &addition, &local))
 	{
 		JS_ReportError(cx, "Error parsing arguments in win32_setenv");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
 	if(local)
 	{
-		*rval = SetEnvironmentVariable((LPWSTR)JS_GetStringChars(name), (LPWSTR)JS_GetStringChars(value)) ? JSVAL_TRUE : JSVAL_FALSE;
+		*rval = SetEnvironmentVariable(name, value) ? JSVAL_TRUE : JSVAL_FALSE;
+		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 
 	HKEY envKey;
-	LPWSTR namec = (LPWSTR)JS_GetStringChars(name), valuec = (LPWSTR)JS_GetStringChars(value);
 	DWORD type, size, statusCode;
 	statusCode = RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment"), 0, KEY_SET_VALUE | KEY_QUERY_VALUE, &envKey);
 	if(envKey == NULL)
 	{
 		SetLastError(statusCode);
 		*rval = JSVAL_FALSE;
+		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
-	if(addition == TRUE && RegQueryValueEx(envKey, namec, NULL, &type, NULL, &size) == ERROR_SUCCESS)
+	if(addition == TRUE && RegQueryValueEx(envKey, name, NULL, &type, NULL, &size) == ERROR_SUCCESS)
 	{
 		LPWSTR regValue = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size + sizeof(WCHAR));
-		RegQueryValueEx(envKey, namec, NULL, NULL, (LPBYTE)regValue, &size);
-		LPWSTR outputValue = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size + wcslen(valuec) + sizeof(WCHAR));
-		size = wsprintf(outputValue, TEXT("%s;%s"), regValue, valuec) + 1;
-		statusCode = RegSetValueExW(envKey, namec, 0, type, (LPBYTE)outputValue, size);
+		RegQueryValueEx(envKey, name, NULL, NULL, (LPBYTE)regValue, &size);
+		LPWSTR outputValue = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size + wcslen(value) + sizeof(WCHAR));
+		size = wsprintf(outputValue, TEXT("%s;%s"), regValue, value) + 1;
+		statusCode = RegSetValueExW(envKey, name, 0, type, (LPBYTE)outputValue, size);
 		HeapFree(GetProcessHeap(), 0, regValue);
 		HeapFree(GetProcessHeap(), 0, outputValue);
 	}
 	else
 	{
-		if(wcschr(valuec, TEXT('%')) == NULL)
+		if(wcschr(value, TEXT('%')) == NULL)
 			type = REG_SZ;
 		else
 			type = REG_EXPAND_SZ;
 
-		statusCode = RegSetValueExW(envKey, namec, 0, type, (BYTE*)valuec, wcslen(valuec) + 1);
+		statusCode = RegSetValueExW(envKey, name, 0, type, (BYTE*)value, wcslen(value) + 1);
 	}
 	RegCloseKey(envKey);
 	DWORD messageResult = 0;
 	SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, NULL, (LPARAM)(TEXT("Environment")), SMTO_NORMAL, 0, &messageResult);
-
-	return JS_NewNumberValue(cx, statusCode, rval);
+	JSBool retVal = JS_NewNumberValue(cx, statusCode, rval);
+	JS_EndRequest(cx);
+	return retVal;
 }
 
 JSBool win32_getenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	if(argc < 1)
 	{
 		JS_ReportError(cx, "getenv requires the name of the variable to be passed");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 	JSString * name = JS_ValueToString(cx, argv[0]);
@@ -166,6 +188,7 @@ JSBool win32_getenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	if(size == 0)
 	{
 		*rval = JSVAL_FALSE;
+		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 	LPWSTR valueBuffer = (LPWSTR)JS_malloc(cx, (size + 2) * sizeof(WCHAR));
@@ -174,24 +197,29 @@ JSBool win32_getenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	{
 		JS_free(cx, valueBuffer);
 		*rval = JSVAL_FALSE;
+		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 	JSString * value = JS_NewUCString(cx, valueBuffer, size + 1);
 	*rval = STRING_TO_JSVAL(value);
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
 
 JSBool win32_setcurrentdirectory(JSContext * cx, JSObject * obj, uintN argc, jsval *argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	if(argc < 1 || !JSVAL_IS_STRING(*argv))
 	{
 		JS_ReportError(cx, "Must provide directory name to setcurrentdirectory.");
+		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
 	JSString * pathName = JS_ValueToString(cx, *argv);
 	*rval = SetCurrentDirectory((LPWSTR)JS_GetStringChars(pathName)) ? JSVAL_TRUE : JSVAL_FALSE;
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -201,7 +229,9 @@ JSBool win32_getcurrentdirectory(JSContext * cx, JSObject * obj, uintN argc, jsv
 	size += sizeof(WCHAR) * 2;
 	LPWSTR buffer = (LPWSTR)JS_malloc(cx, size);
 	size = GetCurrentDirectory(size + (sizeof(WCHAR) * 2), buffer);
+	JS_BeginRequest(cx);
 	*rval = STRING_TO_JSVAL(JS_NewUCString(cx, buffer, size));
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
