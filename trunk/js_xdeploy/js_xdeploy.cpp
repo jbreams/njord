@@ -264,26 +264,6 @@ extern "C" {
 
 BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 {
-	CoInitialize(NULL);
-	if(CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (LPVOID*)&pLoc) != ERROR_SUCCESS)
-	{
-		JS_ReportError(cx, "Error creating WbemLocator.");
-		return FALSE;
-	}
-	
-	if(pLoc->ConnectServer(_bstr_t(TEXT("ROOT\\CIMV2")), NULL, NULL, 0, NULL, 0, 0, &pSvc) != ERROR_SUCCESS)
-	{
-		JS_ReportError(cx, "Error connecting to local WMI.");
-		pLoc->Release();
-		return FALSE;
-	}
-
-	if(CoSetProxyBlanket(pSvc, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, NULL, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE) != ERROR_SUCCESS)
-	{
-		JS_ReportError(cx, "Error setting security parameters for WMI query.");
-		return FALSE;
-	}
-
 	JSFunctionSpec xdeployFunctions[] = {
 		{ "SetComputerName", setcomputername, 2, 0 },
 		{ "NetJoinDomain", netjoindomain, 6, 0 },
