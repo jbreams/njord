@@ -3,6 +3,8 @@
 #include "resource.h"
 
 LPWSTR LoadFile(LPTSTR fileName);
+BOOL ShutdownSigning();
+BOOL StartupSigning();
 
 JSBool InitNativeLoad(JSContext * cx, JSObject * global);
 JSBool InitExec(JSContext * cx, JSObject * global);

@@ -31,7 +31,7 @@ void ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 	LPSTR messageBuf = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 4096);
 	sprintf_s(messageBuf, 4096, "Fatal error in nJord script!\nError message (%u): %s\nOffending source line (%u): %s\nError token: %s\n",
 		report->errorNumber, message, report->lineno, report->linebuf, report->tokenptr);
-	MessageBoxA(NULL, messageBuf, "nJord Fatal Error", MB_OK);
+	MessageBoxA(NULL, messageBuf, "nJord Fatal Error", MB_OK | MB_TOPMOST | MB_SETFOREGROUND);
 	HeapFree(GetProcessHeap(), 0, messageBuf);
 }
 
@@ -40,6 +40,8 @@ JSBool njord_exit(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 	*rval = *argv;
 	return JS_FALSE;
 }
+
+BOOL SetupSigningFromFile(LPWSTR certPath);
 
 int APIENTRY _tWinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
@@ -52,7 +54,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	DWORD runtimeSize = 0x4000000;
 	DWORD stackSize = 0x2000;
 	HKEY nJordSettingsKey = NULL;
-	RegOpenKey(HKEY_LOCAL_MACHINE, TEXT("Software\\ReamsTronics\\nJord"), &nJordSettingsKey);
+	RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("Software\\nJord"),0, KEY_QUERY_VALUE, &nJordSettingsKey);
 	if(nJordSettingsKey)
 	{
 		DWORD value;
@@ -74,6 +76,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 		RegCloseKey(nJordSettingsKey);
 	}
 
+	if(!StartupSigning())
+	{
+		MessageBox(NULL, TEXT("There was an error initializing code signing. Cannot continue!"), TEXT("nJord Platform"), MB_OK);
+		return GetLastError();
+	}
 	rt = JS_NewRuntime(runtimeSize);
 	if(rt == NULL)
 	{
@@ -124,6 +131,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	JS_DestroyContext(cx);
 	JS_DestroyRuntime(rt);
 	JS_ShutDown();
+	ShutdownSigning();
 //	Cleanup();
 	return 0;
 }
