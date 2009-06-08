@@ -119,6 +119,11 @@ LPWSTR LoadFile(LPTSTR fileName)
 	LPWSTR signatureBlock = wcsstr(returnThis, TEXT("/* SIG # Begin signature block"));
 	if(signatureBlock == NULL)
 	{
+		if(!allowUnsignedCode)
+		{
+			HeapFree(GetProcessHeap(), 0, returnThis);
+			return NULL;
+		}
 		int messageBoxResult = MessageBox(NULL, TEXT("Signing error.\r\nnJord is configured to require code-signing on loaded nJord scripts. The file specified does not appear to have a signature block.\r\n\r\n Do you want to continue file loading?"), TEXT("nJord Platform"), MB_YESNO | MB_DEFBUTTON2 | MB_ICONSTOP | MB_TOPMOST | MB_SETFOREGROUND);
 		if(messageBoxResult == IDNO)
 		{
@@ -160,6 +165,11 @@ LPWSTR LoadFile(LPTSTR fileName)
 	CryptDestroyHash(hHash);
 	if(!ok)
 	{
+		if(!promptAfterFailedSigning)
+		{
+			HeapFree(GetProcessHeap(), 0, returnThis);
+			return NULL;
+		}
 		int messageBoxResult = MessageBox(NULL, TEXT("Signing error.\r\nnJord is configured to require code-signing on loaded nJord scripts. The file specified has failed signature verification and may have been tampered with.\r\nIt is unwise to run code that has failed this test!\r\n\r\n Do you want to continue file loading?"), TEXT("nJord Platform"), MB_YESNO | MB_DEFBUTTON2 | MB_ICONSTOP | MB_TOPMOST | MB_SETFOREGROUND);
 		if(messageBoxResult == IDNO)
 		{
@@ -449,7 +459,9 @@ BOOL StartupSigning()
 }
 BOOL ShutdownSigning()
 {
-	CryptDestroyKey(hPubKey);
-	CryptReleaseContext(hProv, 0);
+	if(hPubKey != NULL)
+		CryptDestroyKey(hPubKey);
+	if(hProv != NULL)
+		CryptReleaseContext(hProv, 0);
 	return TRUE;
 }

@@ -173,8 +173,6 @@ void DOMEventListener::UnregisterAll()
 	WaitForSingleObject(addRemoveMutex, INFINITE);
 	while(curEr != NULL)
 	{
-		nsCOMPtr<nsIDOMEventTarget>  eventTarget = do_QueryInterface(curEr->target);
-		eventTarget->RemoveEventListener(curEr->domEvent, (nsIDOMEventListener*)this, PR_FALSE);
 		EventRegistration * nextEr = curEr->next;
 		delete curEr;
 		curEr = nextEr;

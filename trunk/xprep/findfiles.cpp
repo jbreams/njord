@@ -5,7 +5,7 @@
 void find_file_cleanup(JSContext * cx, JSObject * obj)
 {
 	HANDLE findHandle = JS_GetPrivate(cx, obj);
-	if(findHandle != INVALID_HANDLE_VALUE)
+	if(findHandle != INVALID_HANDLE_VALUE && findHandle != NULL)
 		FindClose(findHandle);
 }
 
