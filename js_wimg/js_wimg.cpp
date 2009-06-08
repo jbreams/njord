@@ -169,24 +169,25 @@ JSObject * wimImageProto;
 
 JSBool wimg_capture_image(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	JSString * path;
+	LPWSTR path;
 	DWORD captureFlags = 0;
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "S /u", &path, &captureFlags))
+	if(!JS_ConvertArguments(cx, argc, argv, "W /u", &path, &captureFlags))
 	{
 		JS_ReportError(cx, "Error during argument parsing in WIMCaptureImage");
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
-	if(JS_GetStringLength(path) > MAX_PATH)
+	if(wcslen(path) > MAX_PATH)
 	{
 		*rval = JSVAL_FALSE;
 		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 	jsrefcount rCount = JS_SuspendRequest(cx);
-	HANDLE newImage = WIMCaptureImage(JS_GetPrivate(cx, obj), (LPWSTR)JS_GetStringChars(path), captureFlags);
+	HANDLE wimFile = JS_GetPrivate(cx, obj);
+	HANDLE newImage = WIMCaptureImage(wimFile, path, captureFlags);
 	JS_ResumeRequest(cx, rCount);
 	if(newImage == NULL)
 		*rval = JSVAL_FALSE;
@@ -357,12 +358,6 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 
 BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
 {
-	while(setHead != NULL)
-	{
-		MatchSet * nextSet = setHead->next;
-		delete setHead;
-		setHead = nextSet;
-	}
 	return TRUE;
 }
 #ifdef __cplusplus

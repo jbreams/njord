@@ -30,27 +30,16 @@ public:
 	MatchEntry(LPWSTR copyFrom);
 	~MatchEntry();
 
-	BOOL Match(LPWSTR target, LPWSTR patternStr);
+	BOOL Match(LPWSTR target);
 	MatchEntry * next;
 private:
 	LPWSTR matchString;
-	DWORD matchLen;
 	BOOL fileName;
 };
 
-class MatchSet
-{
-public:
-	MatchSet();
-	~MatchSet();
-	BOOL MatchMe(LPWSTR fullPath);
-	void AddMatch(LPWSTR pattern);
-	void ClearSet();
-	MatchSet * next;
-
-private:
-	CRITICAL_SECTION setLock;
-	MatchEntry * entriesHead;
+struct MatchSet {
+	MatchEntry * head;
+	HANDLE wimFile;
 };
 
 JSBool wimg_set_exceptions(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval);

@@ -7,8 +7,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_curl", "js_curl\js_curl.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_xdeploy", "js_xdeploy\js_xdeploy.vcproj", "{03E99EE3-944C-489C-B105-C6D4D185906B}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_gecko", "js_gecko\js_gecko.vcproj", "{E0383830-1E93-47D2-B69D-C5D3F4E8AB6C}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_hotkey", "js_hotkey\js_hotkey.vcproj", "{A524BD44-8FC4-4A6F-9939-9C237290B8D1}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_gecko2", "js_gecko2\js_gecko2.vcproj", "{A10013D7-B505-4EB5-A524-1841BBBA97EB}"
@@ -21,7 +19,12 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_xdriver", "js_xdriver\js
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "signscript", "signscript\signscript.vcproj", "{F53D2A3F-A0F4-47D4-A74B-BE1F795DB0ED}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{09C800CE-9AB8-43E2-B52C-2D5EDE7A0D12}"
+EndProject
 Global
+	GlobalSection(TestCaseManagementSettings) = postSolution
+		CategoryFile = xprep.vsmdi
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
 		Release|Win32 = Release|Win32
@@ -39,10 +42,6 @@ Global
 		{03E99EE3-944C-489C-B105-C6D4D185906B}.Debug|Win32.Build.0 = Debug|Win32
 		{03E99EE3-944C-489C-B105-C6D4D185906B}.Release|Win32.ActiveCfg = Release|Win32
 		{03E99EE3-944C-489C-B105-C6D4D185906B}.Release|Win32.Build.0 = Release|Win32
-		{E0383830-1E93-47D2-B69D-C5D3F4E8AB6C}.Debug|Win32.ActiveCfg = Debug|Win32
-		{E0383830-1E93-47D2-B69D-C5D3F4E8AB6C}.Debug|Win32.Build.0 = Debug|Win32
-		{E0383830-1E93-47D2-B69D-C5D3F4E8AB6C}.Release|Win32.ActiveCfg = Release|Win32
-		{E0383830-1E93-47D2-B69D-C5D3F4E8AB6C}.Release|Win32.Build.0 = Release|Win32
 		{A524BD44-8FC4-4A6F-9939-9C237290B8D1}.Debug|Win32.ActiveCfg = Debug|Win32
 		{A524BD44-8FC4-4A6F-9939-9C237290B8D1}.Debug|Win32.Build.0 = Debug|Win32
 		{A524BD44-8FC4-4A6F-9939-9C237290B8D1}.Release|Win32.ActiveCfg = Release|Win32

@@ -247,7 +247,8 @@ JSBool curl_saveas(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	HANDLE openFile = CreateFile((LPWSTR)JS_GetStringChars(path), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 	if(openFile == NULL)
 	{
-		*rval = JSVAL_FALSE;
+		JS_NewNumberValue(cx, GetLastError(), rval);
+		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 	curl_easy_setopt(sessionHandle, CURLOPT_WRITEFUNCTION, write_to_file);

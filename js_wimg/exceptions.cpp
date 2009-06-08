@@ -4,11 +4,13 @@
 MatchEntry::MatchEntry(LPWSTR copyFrom)
 { 
 	next = NULL;
-	matchLen = wcslen(copyFrom);
-	matchString = (LPWSTR)HeapAlloc(GetProcessHeap(), 0, sizeof(WCHAR) * (matchLen + 1));
-	wcscpy_s(matchString, matchLen + 1, copyFrom);
+	fileName = FALSE;
+	DWORD matchLen = wcslen(copyFrom);
+	matchString = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(WCHAR) * (matchLen + 1));
 	if(wcsrchr(copyFrom, TEXT('\\')) == NULL)
 		fileName = TRUE;
+	wcscpy_s(matchString, matchLen + 1, copyFrom);
+	_wcslwr_s(matchString, matchLen + 1);
 }
 
 MatchEntry::~MatchEntry()
@@ -16,122 +18,57 @@ MatchEntry::~MatchEntry()
 	HeapFree(GetProcessHeap(), 0, matchString);
 }
 
-BOOL MatchEntry::Match(LPWSTR target, LPWSTR patternStr = NULL)
+BOOL MatchEntry::Match(LPWSTR target)
 {
-	enum State { Exact, Any, AnyRepeat };
-	if(fileName)
+	LPWSTR t = target, m = matchString;
+	if(fileName) // If we're matching against a filename, advance the target to the filename portion
+		t = wcsrchr(t, L'\\') + 1;
+	else // Otherwise advance past the drive name ("c:\temp" -> "\temp")
+		t = wcschr(t, L'\\'); 
+	while(*t) // While the target has more characters
 	{
-		LPWSTR newTarget = wcsrchr(target, TEXT('\\'));
-		if(newTarget)
-			target = newTarget;
-	}
-
-	LPWSTR s = target, p = (patternStr == NULL ? matchString : patternStr), q = NULL;
-	if(fileName == TRUE)
-		s = wcsrchr(s, TEXT('\\'));
-	BOOL match = TRUE;
-	int state = 0;
-	while(match && *p)
-	{
-		if(*p == '*')
+		if(*m == L'*') // If the match has a wildcard
 		{
-			state = AnyRepeat;
-			q = p + 1;
+			while(*m && *m == L'*') m++; // Find the next character that isn't a wild card.
+			if(!*m) // If the wildcard was the last character - then it's a match. 
+				return TRUE;
+			while(*t && *t != *m) t++; // Find the next character in the target that isn't equal to the current match character
+			if(!*t) // If the target has no more characters, then the search fails.
+				return FALSE;
 		}
-		else if(*p = '?')
-			state = Any;
-		else
-			state = Exact;
-
-		if(*s == 0)
-			break;
-
-		switch(state)
+		else if(*m == L'?') // If the match has a single-character wildcard
 		{
-		case Exact:
-			match = *s == *p;
-			s++;
-			p++;
-			break;
-		case Any:
-			match = TRUE;
-			s++;
-			p++;
-			break;
-		case AnyRepeat:
-			match = TRUE;
-			s++;
-			if(*s == *q)
-			{
-				if(Match(s, q) == TRUE)
-					p++;
-			}
-			break;
+			m++; // Advance both pointers
+			t++;
+			if(*t != *m) // If the next characters aren't equal, then the search equals
+				return FALSE;
+		}
+		else // Otherwise it's just a straight string comparison
+		{
+			if(*m != *t)
+				return FALSE;
+			m++;
+			t++;
 		}
 	}
-	if(state == AnyRepeat)
-		return *s == *q;
-	else if(state == Any)
-		return *s == *p;
-	else
-		return match && (*s == *p);
+	// If you've made it this far, the strings are equivalent.
+	return TRUE; 
 }
 
-MatchSet::MatchSet()
-{
-	InitializeCriticalSection(&setLock);
-	next = NULL;
-}
-MatchSet::~MatchSet()
-{
-	ClearSet();
-	DeleteCriticalSection(&setLock);
-}
+struct MatchSet sets[254] = { 0 };
+BYTE setsInUse = 0;
 
-BOOL MatchSet::MatchMe(LPWSTR fullPath)
-{
-	EnterCriticalSection(&setLock);
-	MatchEntry * curEntry = entriesHead;
-	while(curEntry != NULL && !curEntry->Match(fullPath))
-		curEntry = curEntry->next;
-	LeaveCriticalSection(&setLock);
-	if(curEntry == NULL)
-		return FALSE;
-	return TRUE;
-}
-
-void MatchSet::AddMatch(LPWSTR pattern)
-{
-	MatchEntry * newMatch = new MatchEntry(pattern);
-	EnterCriticalSection(&setLock);
-	newMatch->next = entriesHead;
-	entriesHead = newMatch;
-	LeaveCriticalSection(&setLock);
-}
-
-void MatchSet::ClearSet()
-{
-	EnterCriticalSection(&setLock);
-	MatchEntry * curEntry = entriesHead;
-	while(curEntry != NULL)
-	{
-		MatchEntry * nextEntry = curEntry->next;
-		delete curEntry;
-		curEntry = nextEntry;
-	}
-	entriesHead = NULL;
-	LeaveCriticalSection(&setLock);
-}
-
-MatchSet * setHead = NULL;
-
-DWORD ExceptionCallback(DWORD messageID, WPARAM wParam, LPARAM lParam, LPVOID lpvUserData)
+DWORD CALLBACK ExceptionCallback(DWORD messageID, WPARAM wParam, LPARAM lParam, LPVOID lpvUserData)
 {
 	if(messageID != WIM_MSG_PROCESS)
 		return WIM_MSG_SUCCESS;
-	MatchSet * mySet = (MatchSet*)lpvUserData;
-	BOOL * pfB = (LPBOOL)lParam;
-	*pfB = !(mySet->MatchMe((LPWSTR)wParam));
+	MatchEntry * myHead = (MatchEntry*)lpvUserData;
+	LPWSTR currentFile = (LPWSTR)wParam;
+	BOOL * processThis = (BOOL*)lParam;
+
+	while(myHead != NULL && !myHead->Match((LPWSTR)wParam))
+		myHead = myHead->next;
+	*processThis = myHead ? FALSE : TRUE;
 	return WIM_MSG_SUCCESS;
 }
 
@@ -145,23 +82,38 @@ JSBool wimg_set_exceptions(JSContext * cx, JSObject * obj, uintN argc, jsval * a
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
-	
-	MatchSet * newMatchSet = new MatchSet();
+	HANDLE hObject = (HANDLE)JS_GetPrivate(cx, obj);
+	BYTE i = 0;
+	for(i = 0; i < setsInUse; i++)
+	{
+		if(sets[i].wimFile == hObject)
+			break;
+	}
+	sets[i].wimFile = hObject;
+	if(sets[i].head != NULL)
+	{
+		while(sets[i].head != NULL)
+		{
+			MatchEntry * nEntry = sets[i].head->next;
+			delete sets[i].head;
+			sets[i].head = nEntry;
+		}
+		WIMUnregisterMessageCallback(hObject, (FARPROC)ExceptionCallback);
+	}
+
 	jsuint arrayLength;
 	JS_GetArrayLength(cx, arrayObj, &arrayLength);
-	for(jsuint i = 0; i < arrayLength; i++)
+	for(jsuint j = 0; j < arrayLength; j++)
 	{
 		jsval curStrVal;
-		JS_GetElement(cx, arrayObj, i, &curStrVal);
+		JS_GetElement(cx, arrayObj, j, &curStrVal);
 		JSString * curStr = JS_ValueToString(cx, curStrVal);
-		newMatchSet->AddMatch((LPWSTR)JS_GetStringChars(curStr));
+		MatchEntry * me = new MatchEntry((LPWSTR)JS_GetStringChars(curStr));
+		me->next = sets[i].head;
+		sets[i].head = me;
 	}
-	newMatchSet->next = setHead;
-	setHead = newMatchSet;
-
-	HANDLE hObject = (HANDLE)JS_GetPrivate(cx, obj);
-	WIMUnregisterMessageCallback(hObject, (FARPROC)ExceptionCallback);
-	*rval = WIMRegisterMessageCallback(hObject, (FARPROC)ExceptionCallback, newMatchSet) ? JSVAL_TRUE : JSVAL_FALSE;
+	
+	*rval = WIMRegisterMessageCallback(hObject, (FARPROC)ExceptionCallback, sets[i].head) ? JSVAL_TRUE : JSVAL_FALSE;
 	JS_EndRequest(cx);
 
 	return JS_TRUE;	
