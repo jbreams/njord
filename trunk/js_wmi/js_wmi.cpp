@@ -9,6 +9,7 @@
 #pragma comment(lib, "wbemuuid.lib")
 
 IWbemLocator * pLoc = NULL;
+DWORD nWbemServices = 0;
 
 void wmi_services_cleanup(JSContext * cx, JSObject * obj);
 JSClass wmiServices = {	"WbemServices",  /* name */
@@ -41,6 +42,17 @@ JSObject * wmiClassProto;
 
 JSBool wmi_connect(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	if(pLoc == NULL)
+	{
+		CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+		HRESULT result = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (LPVOID*)&pLoc);
+		if(result != S_OK)
+		{
+			*rval = JSVAL_FALSE;
+			SetLastError(result);
+			return JS_TRUE;
+		}
+	}
 	LPWSTR resource = NULL, user = NULL, password = NULL, locale = NULL;
 	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "W/ W W W", &resource, &user, &password, &locale))
@@ -74,6 +86,7 @@ JSBool wmi_connect(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	*rval = OBJECT_TO_JSVAL(retSvc);
 	JS_SetPrivate(cx, retSvc, pSvc);
 	JS_EndRequest(cx);
+	nWbemServices++;
 	return JS_TRUE;
 }
 
@@ -183,6 +196,8 @@ void wmi_services_cleanup(JSContext * cx, JSObject * obj)
 	IWbemServices * pSvc = (IWbemServices*)JS_GetPrivate(cx, obj);
 	if(pSvc)
 		pSvc->Release();
+	if(--nWbemServices == 0)
+		pLoc->Release();
 }
 JSBool wmi_next_enum(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
@@ -354,13 +369,6 @@ extern "C" {
 #endif
 BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 {
-	CoInitialize(NULL);
-	if(CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (LPVOID*)&pLoc) != ERROR_SUCCESS)
-	{
-		JS_ReportError(cx, "Error creating WbemLocator");
-		return FALSE;
-	}
-
 	JSFunctionSpec wmiServiceFunctions[] = {
 		{ "OpenClass", wmi_open_class, 3, 0 },
 		{ "ExecQuery", wmi_exec_query, 1, 0 },
@@ -385,7 +393,6 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 
 BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
 {
-	pLoc->Release();
 	return TRUE;
 }
 #ifdef __cplusplus

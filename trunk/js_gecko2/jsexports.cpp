@@ -28,7 +28,7 @@
 #include "nsIWebNavigation.h"
 #include "nsIWidget.h"
 #include "privatedata.h"
-
+#include "nsIDOMParser.h"
 #include "nsIDOMDocument.h"
 
 extern BOOL keepUIGoing;
@@ -227,6 +227,40 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	return JS_TRUE;
 }
 
+JSBool g2_import_dom_string(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
+	LPWSTR dataToLoad;
+	char *contentType = "text/html";
+
+	JS_BeginRequest(cx);
+	if(!JS_ConvertArguments(cx, argc, argv, "W/ s", &dataToLoad, &contentType))
+	{
+		JS_ReportError(cx, "Error in argument processing in g2_load_data");
+		JS_EndRequest(cx);
+		return JS_FALSE;
+	}
+
+	JS_YieldRequest(cx);
+	nsresult rv;
+	NS_WITH_PROXIED_SERVICE(nsIDOMParser, parser, NS_DOMPARSER_CONTRACTID, NS_PROXY_TO_MAIN_THREAD, &rv);
+	nsCOMPtr<nsIDOMDocument> newDocument, document;
+	mPrivate->mDOMWindow->GetDocument(getter_AddRefs(document));
+	if(NS_SUCCEEDED(parser->ParseFromString(dataToLoad, contentType, getter_AddRefs(newDocument))))
+	{
+		nsCOMPtr<nsIDOMNode> domNodeIn = do_QueryInterface(newDocument);
+		nsIDOMNode * domNodeOut = NULL;
+		document->ImportNode(domNodeIn, PR_TRUE, &domNodeOut);
+		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
+		*rval = OBJECT_TO_JSVAL(retObj);
+		JS_SetPrivate(cx, retObj, domNodeOut);
+	}
+	else
+		*rval = JSVAL_FALSE;
+	JS_EndRequest(cx);
+	return JS_TRUE;
+}
+
 JSBool g2_destroy(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
@@ -285,6 +319,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "GetInput", g2_get_input_value, 1, 0 },
 		{ "GetElementByID", g2_get_element_by_id, 1, 0 },
 		{ "Repaint", g2_repaint, 0, 0 },
+		{ "ImportDOM", g2_import_dom_string, 1, 0 },
 		{ 0 }
 	};
 
