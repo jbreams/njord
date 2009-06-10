@@ -54,7 +54,7 @@ JSBool file_set_contents(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	JSBool unicode = JS_FALSE;
 	DWORD flags = FILE_FLAG_SEQUENTIAL_SCAN;
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "W W/ b u", &fileName, &fileContents, &unicode, &flags))
+	if(!JS_ConvertArguments(cx, argc, argv, "W W/ * b u", &fileName, &fileContents, &unicode, &flags))
 	{
 		JS_ReportError(cx, "Error parsing arguments in file_set_contents");
 		JS_EndRequest(cx);
@@ -67,6 +67,30 @@ JSBool file_set_contents(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 		*rval = JSVAL_FALSE;
 		JS_EndRequest(cx);
 		return JS_TRUE;
+	}
+
+	if(argc > 2)
+	{
+		LARGE_INTEGER li;
+		GetFileSizeEx(fileToWrite, &li);
+		if(JSVAL_IS_BOOLEAN(argv[2]))
+		{
+			JSBool append = JS_FALSE;
+			JS_ValueToBoolean(cx, argv[2], &append);
+			if(append)
+				SetFilePointerEx(fileToWrite, li, NULL, FILE_BEGIN);
+		}
+		else if(JSVAL_IS_NUMBER(argv[2]))
+		{
+			jsdouble fromStart = 0;
+			JS_ValueToNumber(cx, argv[2], &fromStart);
+			if(fromStart > 0)
+			{
+				if(fromStart > li.QuadPart)
+					fromStart = li.QuadPart;
+				SetFilePointerEx(fileToWrite, li, NULL, FILE_BEGIN);
+			}
+		}
 	}
 
 	DWORD nChars = wcslen(fileContents);
@@ -90,8 +114,9 @@ JSBool file_set_contents(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 JSBool file_get_contents(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	LPWSTR fileName = NULL;
+	DWORD start = 0, end = 0;
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "W", &fileName))
+	if(!JS_ConvertArguments(cx, argc, argv, "W/ u u", &fileName, &start, &end))
 	{
 		JS_ReportError(cx, "Error parsing arguments in file_set_contents");
 		JS_EndRequest(cx);

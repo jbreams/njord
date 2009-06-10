@@ -156,11 +156,7 @@ void DOMEventListener::UnregisterEvent(nsIDOMNode * targetNode, LPWSTR type)
 	LeaveCriticalSection(&headLock);
 	
 	if(curEr != NULL)
-	{
-		nsCOMPtr<nsIDOMEventTarget> eventTarget = do_QueryInterface(curEr->target);
-		eventTarget->RemoveEventListener(curEr->domEvent, (nsIDOMEventListener*)this, PR_FALSE);
 		delete curEr;
-	}
 	ReleaseMutex(addRemoveMutex);
 	realTarget->Release();
 }
