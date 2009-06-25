@@ -1,26 +1,7 @@
 #include "stdafx.h"
 #include "njord.h"
-
-
-struct JSConstDoubleSpec win32MessageBoxTypes[] = {
-	{ MB_ABORTRETRYIGNORE, "MB_ABORTRETRYIGNORE", 0, 0 },
-	{ MB_CANCELTRYCONTINUE, "MB_CANCELTRYCONTINUE", 0, 0 },
-	{ MB_HELP, "MB_HELP", 0, 0 },
-	{ MB_OK, "MB_OK", 0, 0 },
-	{ MB_OKCANCEL, "MB_OKCANCEL", 0, 0 },
-	{ MB_RETRYCANCEL, "MB_RETRYCANCEL", 0, 0 },
-	{ MB_YESNO, "MB_YESNO", 0, 0 },
-	{ MB_YESNOCANCEL, "MB_YESNOCANCEL", 0, 0 },
-	{ MB_ICONEXCLAMATION, "MB_ICONEXCLAMATION", 0, 0 },
-	{ MB_ICONWARNING, "MB_ICONWARNING", 0, 0 },
-	{ MB_ICONINFORMATION, "MB_ICONINFORMATION", 0, 0 },
-	{ MB_ICONASTERISK, "MB_ICONASTERISK", 0, 0 },
-	{ MB_ICONQUESTION, "MB_ICONQUESTION", 0, 0 },
-	{ MB_ICONSTOP, "MB_ICONSTOP", 0, 0 },
-	{ MB_ICONERROR, "MB_ICONERROR", 0, 0 },
-	{ MB_ICONHAND, "MB_ICONHAND", 0, 0 },
-	{ 0 },
-};
+#include <Wincrypt.h>
+#pragma comment(lib, "crypt32.lib")
 
 JSBool win32_messagebox(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *rval)
 {
@@ -206,7 +187,6 @@ JSBool win32_getenv(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	return JS_TRUE;
 }
 
-
 JSBool win32_setcurrentdirectory(JSContext * cx, JSObject * obj, uintN argc, jsval *argv, jsval * rval)
 {
 	JS_BeginRequest(cx);
@@ -268,8 +248,28 @@ JSBool win32_sleep(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 
 void InitWin32s(JSContext * cx, JSObject * global)
 {
+	struct JSConstDoubleSpec win32MessageBoxTypes[] = {
+		{ MB_ABORTRETRYIGNORE, "MB_ABORTRETRYIGNORE", 0, 0 },
+		{ MB_CANCELTRYCONTINUE, "MB_CANCELTRYCONTINUE", 0, 0 },
+		{ MB_HELP, "MB_HELP", 0, 0 },
+		{ MB_OK, "MB_OK", 0, 0 },
+		{ MB_OKCANCEL, "MB_OKCANCEL", 0, 0 },
+		{ MB_RETRYCANCEL, "MB_RETRYCANCEL", 0, 0 },
+		{ MB_YESNO, "MB_YESNO", 0, 0 },
+		{ MB_YESNOCANCEL, "MB_YESNOCANCEL", 0, 0 },
+		{ MB_ICONEXCLAMATION, "MB_ICONEXCLAMATION", 0, 0 },
+		{ MB_ICONWARNING, "MB_ICONWARNING", 0, 0 },
+		{ MB_ICONINFORMATION, "MB_ICONINFORMATION", 0, 0 },
+		{ MB_ICONASTERISK, "MB_ICONASTERISK", 0, 0 },
+		{ MB_ICONQUESTION, "MB_ICONQUESTION", 0, 0 },
+		{ MB_ICONSTOP, "MB_ICONSTOP", 0, 0 },
+		{ MB_ICONERROR, "MB_ICONERROR", 0, 0 },
+		{ MB_ICONHAND, "MB_ICONHAND", 0, 0 },
+		{ 0 },
+	};
+
 	JS_DefineConstDoubles(cx, global, win32MessageBoxTypes);
-	
+
 	struct JSFunctionSpec win32s[] = {
 		{ "MessageBox", win32_messagebox, 1, 0 },
 		{ "GetLastError", win32_getlasterror, 0, 0 },
