@@ -5,12 +5,67 @@
 */
 
 struct PipeReaderInfo {
+	JSContext * cx;
 	HANDLE pipeToRead;
 	LPBYTE bufferToUse;
 	DWORD bufferSize;
 	DWORD used;
 	DWORD toRead;
 };
+
+DWORD exec_reader_thread(LPVOID param)
+{
+	struct PipeReaderInfo * r = (struct PipeReaderInfo*)param;
+	DWORD read = 0;
+	while(ReadFile(r->pipeToRead, r->bufferToUse + r->used, r->bufferSize - r->used, &read, NULL))
+	{
+		r->used += read;
+		if(r->bufferSize - r->used < 512)
+		{
+			r->bufferSize += 512;
+			LPVOID reallocOk = JS_realloc(r->cx, r->bufferToUse, r->bufferSize);
+			if(!reallocOk)
+				return 1;
+			r->bufferToUse = (LPBYTE)reallocOk;				
+			memset(r->bufferToUse + r->used, 0, r->bufferSize - r->used);
+		}
+		read = 0;
+	}
+	return 0;
+}
+
+HANDLE InitReader(struct PipeReaderInfo * p, HANDLE pipeToRead, JSContext * cx)
+{
+	memset(p, 0, sizeof(struct PipeReaderInfo));
+	p->cx = cx;
+	p->pipeToRead = pipeToRead;
+	p->bufferToUse = (LPBYTE)JS_malloc(cx, 4096);
+	memset(p->bufferToUse, 0, 4096);
+	p->bufferSize = 4096;
+	HANDLE retVal = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)exec_reader_thread, (LPVOID)p, 0, NULL);
+	if(retVal != NULL)
+		SetThreadPriority(retVal, THREAD_PRIORITY_LOWEST);
+	return retVal;
+}
+
+jsval ParseReaderOutput(struct PipeReaderInfo * p, JSContext * cx)
+{
+	if(*p->bufferToUse == 0)
+	{
+		JS_free(cx, p->bufferToUse);
+		return JS_GetEmptyStringValue(cx);
+	}
+	if(p->bufferSize - p->used > 512)
+		p->bufferToUse = (LPBYTE)JS_realloc(cx, p->bufferToUse, p->used + sizeof(jschar));
+	JSString * str = NULL;
+	if(IsTextUnicode(p->bufferToUse, p->used, NULL))
+		str = JS_NewUCString(cx, (jschar*)p->bufferToUse, p->used / sizeof(jschar));
+	else
+		str = JS_NewString(cx, (char*)p->bufferToUse, p->used);
+	if(str == NULL)
+		return JSVAL_NULL;
+	return STRING_TO_JSVAL(str);
+}
 
 JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
@@ -41,6 +96,9 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	memset(&si, 0, sizeof(si));
 	memset(&pi, 0, sizeof(pi));
 
+	HANDLE waitHandles[2];
+	memset(waitHandles, 0, sizeof(HANDLE) * 2);
+
 	if(jsCapture == TRUE && jsWait == TRUE)
 	{
 		SECURITY_ATTRIBUTES sa;
@@ -53,15 +111,8 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		si.hStdOutput = stdOutWrite;
 		si.dwFlags |= STARTF_USESTDHANDLES;
 
-		memset(readers, 0, sizeof(struct PipeReaderInfo) * 2);
-		readers[0].pipeToRead = stdOutRead;
-		readers[0].bufferToUse = (LPBYTE)JS_malloc(cx, 4096);
-		memset(readers[0].bufferToUse, 0, 4096);
-		readers[0].bufferSize = 4096;
-		readers[1].pipeToRead = stdErrorRead;
-		readers[1].bufferToUse = (LPBYTE)JS_malloc(cx, 4096);
-		memset(readers[1].bufferToUse, 0, 4096);
-		readers[1].bufferSize = 4096;
+		waitHandles[0] = InitReader(&readers[0], stdOutRead, cx);
+		waitHandles[1] = InitReader(&readers[1], stdErrorRead, cx);
 	}
 
 	if(jsHide == TRUE)
@@ -79,7 +130,10 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		if(jsCapture)
 			goto functionEnd;
 		else
+		{
 			return JS_TRUE;
+			JS_EndRequest(cx);
+		}
 	}
 
 	if(jsWait == FALSE)
@@ -91,80 +145,48 @@ JSBool xprep_js_exec(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		return JS_TRUE;
 	}
 
+	jsrefcount rCount = JS_SuspendRequest(cx);
+	if(WaitForSingleObject(pi.hProcess, INFINITE) != WAIT_OBJECT_0)
+	{
+		JS_ResumeRequest(cx, rCount);
+		*rval = JSVAL_FALSE;
+		if(!jsCapture)
+		{
+			JS_EndRequest(cx);
+			return JS_TRUE;
+		}
+		else
+			goto functionEnd;
+	}
+	JS_ResumeRequest(cx, rCount);
+
 	if(!jsCapture)
 	{
-		if(WaitForSingleObject(pi.hProcess, INFINITE) != WAIT_OBJECT_0)
-			*rval = JSVAL_FALSE;
-		else
-		{
-			DWORD exitCode;
-			GetExitCodeProcess(pi.hProcess, &exitCode);
-			JS_NewNumberValue(cx, exitCode, rval);
-		}
+		DWORD exitCode;
+		GetExitCodeProcess(pi.hProcess, &exitCode);
+		JS_NewNumberValue(cx, exitCode, rval);
 		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 
-	jsrefcount rCount = JS_SuspendRequest(cx);
-	
-	BOOL running = TRUE;
-	WaitForSingleObject(pi.hProcess, 500);
-	BOOL moreData = TRUE;
-	while(moreData)
-	{
-		moreData = FALSE;
-		for(BYTE x = 0; x < 2; x++)
-		{
-			if(readers[x].toRead > 0)
-			{
-				if(readers[x].used + readers[x].toRead >= readers[x].bufferSize)
-				{
-					readers[x].bufferSize += (readers[x].toRead > 1024 ? readers[x].toRead + 256 : 1024);
-					readers[x].bufferToUse = (LPBYTE)JS_realloc(cx, readers[x].bufferToUse, readers[x].bufferSize);
-					memset(readers[x].bufferToUse + readers[x].used, 0, readers[x].bufferSize - readers[x].used);
-				}
-				if(ReadFile(readers[x].pipeToRead, (LPVOID)(readers[x].bufferToUse + readers[x].used), readers[x].toRead, &readers[x].toRead, NULL))
-					readers[x].used += readers[x].toRead;
-			}
+	CloseHandle(stdOutWrite);
+	CloseHandle(stdErrorWrite);
+	stdOutWrite = NULL;
+	WaitForMultipleObjects(2, waitHandles, TRUE, INFINITE);
+	CloseHandle(waitHandles[0]);
+	CloseHandle(waitHandles[1]);
 
-			PeekNamedPipe(readers[x].pipeToRead, NULL, 0, NULL, &readers[x].toRead, NULL);
-			if(readers[x].toRead > 0 && moreData == FALSE)
-				moreData = TRUE;
-		}
-		if(WaitForSingleObject(pi.hProcess, 500) != WAIT_OBJECT_0)
-			moreData = TRUE;
-	}
-
-	JS_ResumeRequest(cx, rCount);
-
-	JSString * stdOutString = NULL, * stdErrString = NULL;
-	if(IsTextUnicode(readers[0].bufferToUse, readers[0].used, NULL))
-	{
-		stdOutString = JS_NewUCString(cx, (jschar*)readers[0].bufferToUse, readers[0].used);
-		stdErrString = JS_NewUCString(cx, (jschar*)readers[1].bufferToUse, readers[1].used);
-	}
-	else
-	{
-		stdOutString = JS_NewString(cx, (char*)readers[0].bufferToUse, readers[0].used);
-		stdErrString = JS_NewString(cx, (char*)readers[1].bufferToUse, readers[1].used);
-	}
-	
 	DWORD exitCode = STILL_ACTIVE;
 	GetExitCodeProcess(pi.hProcess, &exitCode);
 
 	JSObject * retObj = JS_NewObject(cx, NULL, NULL, obj);
 	*rval = OBJECT_TO_JSVAL(retObj);
 
-	jsval outStringVal = JSVAL_NULL, errStringVal = JSVAL_NULL, retCodeVal;
+	jsval retCodeVal;
 	JS_NewNumberValue(cx, exitCode, &retCodeVal);
 	JS_DefineProperty(cx, retObj, "exitCode", retCodeVal, NULL, NULL, JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_ENUMERATE);
-	if(jsCapture == TRUE && stdOutString && stdErrString)
-	{
-		outStringVal = STRING_TO_JSVAL(stdOutString);
-		errStringVal = STRING_TO_JSVAL(stdErrString);
-	}
-	JS_DefineProperty(cx, retObj, "stdOut", outStringVal, NULL, NULL, JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_ENUMERATE);
-	JS_DefineProperty(cx, retObj, "stdErr", errStringVal, NULL, NULL, JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_ENUMERATE);
+	JS_DefineProperty(cx, retObj, "stdOut", ParseReaderOutput(&readers[0], cx), NULL, NULL, JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_ENUMERATE);
+	JS_DefineProperty(cx, retObj, "stdErr", ParseReaderOutput(&readers[1], cx), NULL, NULL, JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_ENUMERATE);
 	CloseHandle(pi.hProcess);
 	CloseHandle(pi.hThread);
 
@@ -172,11 +194,11 @@ functionEnd:
 	JS_EndRequest(cx);
 	if(stdOutWrite != NULL)
 	{
-		CloseHandle(stdOutRead);
 		CloseHandle(stdOutWrite);
-		CloseHandle(stdErrorRead);
 		CloseHandle(stdErrorWrite);
 	}
+	CloseHandle(stdOutRead);
+	CloseHandle(stdErrorRead);
 	return JS_TRUE;
 }
 
@@ -334,23 +356,22 @@ JSBool njord_query_service_status(JSContext * cx, JSObject * obj, uintN argc, js
 	return JS_TRUE;
 }
 
-struct JSConstDoubleSpec serviceConsts[] = {
-	{ 0, "SERVICE_CONTROL_START", 0, 0 },
-	{ SERVICE_CONTROL_CONTINUE, "SERVICE_CONTROL_CONTINUE", 0, 0 },
-	{ SERVICE_CONTROL_PAUSE, "SERVICE_CONTROL_PAUSE", 0, 0 },
-	{ SERVICE_CONTROL_STOP, "SERVICE_CONTROL_STOP", 0, 0 },
-	{ SERVICE_CONTINUE_PENDING, "SERVICE_CONTINUE_PENDING", 0, 0 },
-	{ SERVICE_PAUSE_PENDING, "SERVICE_PAUSE_PENDING", 0, 0 },
-	{ SERVICE_PAUSED, "SERVICE_PAUSED", 0, 0 },
-	{ SERVICE_RUNNING, "SERVICE_RUNNING", 0, 0 },
-	{ SERVICE_START_PENDING, "SERVICE_START_PENDING", 0, 0 },
-	{ SERVICE_STOP_PENDING, "SERVICE_STOP_PENDING", 0, 0 },
-	{ SERVICE_STOPPED, "SERVICE_STOPPED", 0, 0 },
-	{ 0 },
-};
-
 JSBool InitExec(JSContext * cx, JSObject * global)
 {
+	struct JSConstDoubleSpec serviceConsts[] = {
+		{ 0, "SERVICE_CONTROL_START", 0, 0 },
+		{ SERVICE_CONTROL_CONTINUE, "SERVICE_CONTROL_CONTINUE", 0, 0 },
+		{ SERVICE_CONTROL_PAUSE, "SERVICE_CONTROL_PAUSE", 0, 0 },
+		{ SERVICE_CONTROL_STOP, "SERVICE_CONTROL_STOP", 0, 0 },
+		{ SERVICE_CONTINUE_PENDING, "SERVICE_CONTINUE_PENDING", 0, 0 },
+		{ SERVICE_PAUSE_PENDING, "SERVICE_PAUSE_PENDING", 0, 0 },
+		{ SERVICE_PAUSED, "SERVICE_PAUSED", 0, 0 },
+		{ SERVICE_RUNNING, "SERVICE_RUNNING", 0, 0 },
+		{ SERVICE_START_PENDING, "SERVICE_START_PENDING", 0, 0 },
+		{ SERVICE_STOP_PENDING, "SERVICE_STOP_PENDING", 0, 0 },
+		{ SERVICE_STOPPED, "SERVICE_STOPPED", 0, 0 },
+		{ 0 },
+	};
 	JS_DefineConstDoubles(cx, global, serviceConsts);
 
 	JSFunctionSpec execMethods[] = {
