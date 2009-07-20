@@ -21,6 +21,8 @@
 #include "nsXPCOMCIDInternal.h"
 #include "nsIProxyObjectManager.h"
 
+extern JSClass lDOMNodeClass;
+extern JSObject * lDOMNodeProto;
 
 EventRegistration::EventRegistration()
 {
@@ -77,7 +79,7 @@ NS_IMETHODIMP DOMEventListener::HandleEvent(nsIDOMEvent *aEvent)
 	while(curReg != NULL)
 	{
 		PRBool isSame = PR_FALSE;
-		targetNode->IsSameNode(curReg->target, &isSame);
+		targetNode->IsEqualNode(curReg->target, &isSame);
 		if(eventType.Compare(curReg->domEvent) == 0 && isSame)
 		{
 			SetEvent(curReg->windowsEvent);
@@ -111,8 +113,7 @@ BOOL DOMEventListener::RegisterEvent(nsIDOMNode *target, LPWSTR type, LPSTR call
 		if(callback != NULL)
 			nReg->callback = _strdup(callback);
 		nReg->windowsEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-		nReg->target = target;
-		target->AddRef();
+		target->CloneNode(PR_TRUE, &nReg->target);
 
 		EnterCriticalSection(&headLock);
 		nReg->next = head;
@@ -138,7 +139,7 @@ void DOMEventListener::UnregisterEvent(nsIDOMNode * targetNode, LPWSTR type)
 	while(curEr != NULL)
 	{
 		PRBool nodesAreSame = PR_FALSE;
-		realTarget->IsSameNode(curEr->target, &nodesAreSame);
+		realTarget->IsEqualNode(curEr->target, &nodesAreSame);
 		if(!(curEr->domEvent.Compare(type) == 0 && nodesAreSame))
 		{
 			lastEr = curEr;
@@ -192,7 +193,7 @@ BOOL DOMEventListener::WaitForSingleEvent(nsIDOMNode *target, LPWSTR type, DWORD
 	{
 		PRBool isEqual = PR_FALSE;
 		if(curEr->domEvent.Compare(type) == 0)
-			realTarget->IsSameNode(curEr->target, &isEqual);
+			realTarget->IsEqualNode(curEr->target, &isEqual);
 		if(isEqual)
 			break;
 		curEr = curEr->next;
@@ -248,18 +249,30 @@ BOOL DOMEventListener::WaitForAllEvents(DWORD timeout, BOOL waitAll, JSObject **
 		return FALSE;
 	return TRUE;
 
-/*	if(waitAll == TRUE || out == NULL)
+	if(waitAll == TRUE || out == NULL)
 		return TRUE;
 
 	EnterCriticalSection(&headLock);
 	curReg = head;
-	for(i = WAIT_OBJECT_0; (i < result) && curReg != NULL; i++, curReg = curReg->next) ;
-	if(curReg == NULL)
-		return TRUE;*/
+	for(i = WAIT_OBJECT_0, curReg = head; (i < result) && (curReg != NULL); i++, curReg = curReg->next);
+	if(curReg != NULL && curReg->target != NULL)
+	{
+		nsIDOMNode * retNode;
+		nsresult result = curReg->target->CloneNode(PR_TRUE, &retNode);
+		LeaveCriticalSection(&headLock);
+		if(NS_SUCCEEDED(result))
+		{
+			JS_BeginRequest(mOwner->mContext);
+			JSObject * parent = *out;
+			*out = JS_NewObject(mOwner->mContext, &lDOMNodeClass, lDOMNodeProto, parent);
+			JS_SetPrivate(mOwner->mContext, *out, retNode);
+			JS_EndRequest(mOwner->mContext);
+		}
+	}
+	else
+		LeaveCriticalSection(&headLock);
+	return TRUE;
 }
-
-extern JSClass lDOMNodeClass;
-extern JSObject * lDOMNodeProto;
 
 JSBool g2_register_event(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
@@ -326,7 +339,16 @@ JSBool g2_wait_for_things(JSContext * cx, JSObject * obj, uintN argc, jsval * ar
 	JS_EndRequest(cx);
 
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	*rval = mPrivate->mDOMListener->WaitForAllEvents(timeOut, waitForAll, NULL) ? JSVAL_TRUE : JSVAL_FALSE;
+	if(!waitForAll)
+		*rval = mPrivate->mDOMListener->WaitForAllEvents(timeOut, waitForAll, NULL) ? JSVAL_TRUE : JSVAL_FALSE;
+	else
+	{
+		JSObject * retObj = obj;
+		if(mPrivate->mDOMListener->WaitForAllEvents(timeOut, TRUE, &retObj) && retObj != obj)
+			*rval = OBJECT_TO_JSVAL(retObj);
+		else
+			*rval = JSVAL_FALSE;
+	}
 	return JS_TRUE;
 }
 

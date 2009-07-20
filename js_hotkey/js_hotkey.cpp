@@ -24,6 +24,7 @@ JSObject * useGlobal;
 
 DWORD HotKeyThread(LPVOID param)
 {
+	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
 	HANDLE runningEvent = OpenEvent(SYNCHRONIZE, FALSE, TEXT("hotkey_running_event"));
 	while(WaitForSingleObject(runningEvent, 0) != WAIT_OBJECT_0)
 	{
@@ -101,6 +102,7 @@ DWORD HotKeyThread(LPVOID param)
 		ReleaseMutex(lock);
 	}
 
+	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_END);
 	HANDLE lock = OpenMutex(SYNCHRONIZE, FALSE, TEXT("hotkey_table_mutex"));
 	struct HotKeyRegistration * curReg = hotKeyHead;
 	while(curReg != NULL)

@@ -39,7 +39,7 @@
 			<DebugSettings
 				Command="$(TargetPath)"
 				WorkingDirectory=""
-				CommandArguments="c:\winpe\Program Files\nJord\imageclient.js"
+				CommandArguments="G:\Universal Imaging\xdeploy\test.js"
 				Attach="false"
 				DebuggerType="3"
 				Remote="1"

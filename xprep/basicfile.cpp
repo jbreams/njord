@@ -61,7 +61,7 @@ JSBool file_set_contents(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 		return JS_FALSE;
 	}
 
-	HANDLE fileToWrite = CreateFile(fileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, flags, NULL);
+	HANDLE fileToWrite = CreateFile(fileName, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, flags, NULL);
 	if(fileToWrite == INVALID_HANDLE_VALUE)
 	{
 		*rval = JSVAL_FALSE;
@@ -71,27 +71,29 @@ JSBool file_set_contents(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 
 	if(argc > 2)
 	{
-		LARGE_INTEGER li;
-		GetFileSizeEx(fileToWrite, &li);
 		if(JSVAL_IS_BOOLEAN(argv[2]))
 		{
 			JSBool append = JS_FALSE;
 			JS_ValueToBoolean(cx, argv[2], &append);
 			if(append)
-				SetFilePointerEx(fileToWrite, li, NULL, FILE_BEGIN);
+				SetFilePointer(fileToWrite, 0, NULL, FILE_END);
 		}
 		else if(JSVAL_IS_NUMBER(argv[2]))
 		{
+			LARGE_INTEGER li;
+			GetFileSizeEx(fileToWrite, &li);
 			jsdouble fromStart = 0;
 			JS_ValueToNumber(cx, argv[2], &fromStart);
 			if(fromStart > 0)
 			{
-				if(fromStart > li.QuadPart)
-					fromStart = li.QuadPart;
+				if(fromStart < li.QuadPart)
+					li.QuadPart = fromStart;
 				SetFilePointerEx(fileToWrite, li, NULL, FILE_BEGIN);
 			}
 		}
 	}
+	else
+		SetEndOfFile(fileToWrite);
 
 	DWORD nChars = wcslen(fileContents);
 	BOOL writeOK = FALSE;

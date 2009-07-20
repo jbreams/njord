@@ -37,8 +37,71 @@ void ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 
 JSBool njord_exit(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	*rval = *argv;
+	WORD exitCode = 0;
+	if(argc > 1 && JSVAL_IS_NUMBER(*argv))
+	{
+		JS_BeginRequest(cx);
+		JS_ValueToUint16(cx, *argv, (uint16*)&exitCode);
+		JS_EndRequest(cx);
+	}
+	JS_DestroyContext(cx);
+	JS_DestroyRuntime(rt);
+	JS_ShutDown();
+
+	TerminateProcess(GetCurrentProcess, exitCode);
 	return JS_FALSE;
+}
+
+JSBool parse_args(JSContext * cx, JSObject * obj, LPWSTR lpCmdLine, LPWSTR * scriptFile)
+{
+	LPWSTR cmdLineCopy = _wcsdup(lpCmdLine);
+	DWORD i = 0;
+	BOOL found = FALSE;
+	WCHAR backup = L'\0';
+	DWORD attribs;
+	for(i = 0; i < wcslen(cmdLineCopy) + 1; i++)
+	{
+		if(cmdLineCopy[i] == L' ' || cmdLineCopy[i] == L'\0')
+		{
+			backup = cmdLineCopy[i];
+			cmdLineCopy[i] = '\0';
+			attribs = GetFileAttributes(cmdLineCopy);
+			if(attribs != INVALID_FILE_ATTRIBUTES && !(attribs & FILE_ATTRIBUTE_DIRECTORY))
+			{
+				found = TRUE;
+				break;
+			}
+			else
+				cmdLineCopy[i] = backup;
+		}
+	}
+	if(!found)
+	{
+		free(cmdLineCopy);
+		return JS_FALSE;
+	}
+	*scriptFile = cmdLineCopy;
+	JS_BeginRequest(cx);
+	JSObject * argv = JS_NewArrayObject(cx, 0, NULL);
+	JS_DefineUCProperty(cx, obj, L"argv", wcslen(L"argv"), OBJECT_TO_JSVAL(argv), NULL, NULL, JSPROP_PERMANENT | JSPROP_READONLY | JSPROP_ENUMERATE);
+	JS_EndRequest(cx);
+	cmdLineCopy += i + 1;
+	if(*(cmdLineCopy + 1) == L'\0')
+		return JS_TRUE;
+	DWORD start = 0;
+	DWORD curArg = 0;
+	JS_BeginRequest(cx);
+	for(i = 0; i < (wcslen(cmdLineCopy) + 1); i++)
+	{
+		if(cmdLineCopy[i] == L' ' || cmdLineCopy[i] == L'\0')
+		{
+			JSString * newString = JS_NewUCStringCopyN(cx, (jschar*)(cmdLineCopy + start), i - start);
+			JS_DefineElement(cx, argv, curArg++, STRING_TO_JSVAL(newString), NULL, NULL, JSPROP_PERMANENT | JSPROP_READONLY | JSPROP_ENUMERATE);
+			start = i + 1;
+		}
+	}
+	JS_EndRequest(cx);
+	return JS_TRUE;
 }
 
 BOOL SetupSigningFromFile(LPWSTR certPath);
@@ -117,16 +180,19 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	InitWin32s(cx, global);
 	InitFindFile(cx, global);
 	InitRegistry(cx, global);
-
-	LPWSTR scriptToRun = LoadFile(lpCmdLine);
-	if(scriptToRun == NULL)
+	LPWSTR scriptFileName = NULL;
+	if(parse_args(cx, global, lpCmdLine, &scriptFileName))
 	{
-		MessageBox(NULL, TEXT("Unable to load specified script. Cannot continue."), TEXT("nJord Error"), MB_OK);
-		return 3;
+		LPWSTR scriptToRun = LoadFile(scriptFileName);
+		if(scriptToRun == NULL)
+		{
+			MessageBox(NULL, TEXT("Unable to load specified script. Cannot continue."), TEXT("nJord Error"), MB_OK);
+			return 3;
+		}
+		jsval result;
+		JS_EvaluateUCScript(cx, global, scriptToRun, ::wcslen(scriptToRun), "nJord", 1, &result);
+		HeapFree(GetProcessHeap(), 0, scriptToRun);
 	}
-	jsval result;
-	JS_EvaluateUCScript(cx, global, scriptToRun, ::wcslen(scriptToRun), "njord", 1, &result);
-	HeapFree(GetProcessHeap(), 0, scriptToRun);
 
 	JS_DestroyContext(cx);
 	JS_DestroyRuntime(rt);

@@ -130,11 +130,12 @@ JSBool wmi_open_class(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 JSBool wmi_open_instance(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	LPWSTR strClass = NULL;
-	IWbemClassObject * classObj;
+	DWORD flags = 0;
+	IWbemClassObject * classObj = NULL;
 	IWbemServices * pSvc = (IWbemServices*)JS_GetPrivate(cx, obj);
 
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "W", &strClass))
+	if(!JS_ConvertArguments(cx, argc, argv, "W/ u", &strClass, &flags))
 	{
 		JS_ReportError(cx, "Error during argument processing in wmi_get_instance");
 		JS_EndRequest(cx);
@@ -142,7 +143,7 @@ JSBool wmi_open_instance(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	}
 
 	JS_YieldRequest(cx);
-	HRESULT result = pSvc->GetObjectW(_bstr_t(strClass), WBEM_FLAG_RETURN_WBEM_COMPLETE, NULL, &classObj, NULL);
+	HRESULT result = pSvc->GetObjectW(_bstr_t(strClass), flags, NULL, &classObj, NULL);
 	if(result != WBEM_S_NO_ERROR)
 	{
 		SetLastError(result);
@@ -197,55 +198,10 @@ void wmi_services_cleanup(JSContext * cx, JSObject * obj)
 	if(pSvc)
 		pSvc->Release();
 	if(--nWbemServices == 0)
-		pLoc->Release();
-}
-JSBool wmi_next_enum(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
-{
-	IEnumWbemClassObject * enumObj = (IEnumWbemClassObject*)JS_GetPrivate(cx, obj);
-	IWbemClassObject * classObj;
-	ULONG objCount = 0;
-	HRESULT result = enumObj->Next(INFINITE, 1, &classObj, &objCount);
-	if(result != WBEM_S_NO_ERROR || objCount == 0)
 	{
-		*rval = JSVAL_FALSE;
-		return JS_TRUE;
+		pLoc->Release();
+		pLoc = NULL;
 	}
-
-	JS_BeginRequest(cx);
-	JSObject * retObj = JS_NewObject(cx, &wmiClass, wmiClassProto, obj);
-	JS_SetPrivate(cx, retObj, classObj);
-	*rval = OBJECT_TO_JSVAL(retObj);
-	JS_EndRequest(cx);
-	return JS_TRUE;
-}
-
-JSBool wmi_reset_enum(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
-{
-	IEnumWbemClassObject * enumObj = (IEnumWbemClassObject*)JS_GetPrivate(cx, obj);
-	enumObj->Reset();
-	return JS_TRUE;
-}
-
-void wmi_enum_cleanup(JSContext * cx, JSObject * obj)
-{
-	IEnumWbemClassObject * enumObj = (IEnumWbemClassObject*)JS_GetPrivate(cx, obj);
-	if(enumObj)
-		enumObj->Release();
-}
-
-JSBool wmi_enum_props(JSContext * cx, JSObject * obj)
-{
-	IWbemClassObject * classObj = (IWbemClassObject*)JS_GetPrivate(cx, obj);
-	if(classObj == NULL)
-		return JS_FALSE;
-	classObj->BeginEnumeration(0);
-	_bstr_t propName;
-	JS_BeginRequest(cx);
-	while(classObj->Next(0, propName.GetAddress(), NULL, NULL, NULL) == WBEM_S_NO_ERROR)
-		JS_DefineUCProperty(cx, obj, (jschar*)(LPWSTR)propName, propName.length(), JSVAL_VOID, wmi_getter, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED);
-	JS_EndRequest(cx);
-	classObj->EndEnumeration();
-	return JS_TRUE;
 }
 
 JSBool processValue(JSContext * cx, JSObject * obj, CIMTYPE type, _variant_t & outVar, jsval * vp)
@@ -304,6 +260,105 @@ JSBool processValue(JSContext * cx, JSObject * obj, CIMTYPE type, _variant_t & o
 	default:
 		return JS_FALSE;
 	}
+	return JS_TRUE;
+}
+
+JSBool wmi_enum_props(JSContext * cx, JSObject * obj, IWbemClassObject * wbemObj)
+{
+	wbemObj->BeginEnumeration(0);
+	_bstr_t propName;
+	_variant_t value;
+	CIMTYPE valueType;
+	jsval curJSVal = 0;
+	BOOL moreProps = TRUE;
+	JSBool retCode = JS_TRUE;
+	while(moreProps)
+	{
+		HRESULT result = wbemObj->Next(0, propName.GetAddress(), value.GetAddress(), &valueType, NULL);
+		BOOL hasProperty = JS_FALSE;
+		switch(result)
+		{
+		case WBEM_S_NO_ERROR:
+			if(value.vt = VT_NULL)
+				curJSVal = JSVAL_NULL;
+			else
+				processValue(cx, obj, valueType, value, &curJSVal);
+			JS_HasUCProperty(cx, obj, (jschar*)(LPWSTR)propName, propName.length(), &hasProperty);
+			if(hasProperty)
+				JS_SetUCProperty(cx, obj, (jschar*)(LPWSTR)propName, propName.length(), &curJSVal);
+			else
+				JS_DefineUCProperty(cx, obj, (jschar*)(LPWSTR)propName, propName.length(), curJSVal, NULL, NULL, JSPROP_READONLY | JSPROP_ENUMERATE | JSPROP_PERMANENT);
+			break;
+		case WBEM_S_NO_MORE_DATA:
+			moreProps = FALSE;
+			break;
+		default:
+			retCode = JS_FALSE;
+			break;
+		}
+	}
+	wbemObj->EndEnumeration();
+	return retCode;
+}
+
+JSBool wmi_next_enum(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	IEnumWbemClassObject * enumObj = (IEnumWbemClassObject*)JS_GetPrivate(cx, obj);
+	IWbemClassObject * classObj;
+	ULONG objCount = 0;
+	HRESULT result = enumObj->Next(INFINITE, 1, &classObj, &objCount);
+	if(result != WBEM_S_NO_ERROR || objCount == 0)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+
+	JS_BeginRequest(cx);
+	if(argc == 1 && JSVAL_IS_BOOLEAN(*argv) && *argv == JSVAL_TRUE)
+	{
+		if(!wmi_enum_props(cx, obj, classObj))
+			*rval = JSVAL_FALSE;
+		else
+			*rval = JSVAL_TRUE;
+		classObj->Release();
+	}
+	else
+	{
+		JSObject * retObj = JS_NewObject(cx, &wmiClass, wmiClassProto, obj);
+		JS_SetPrivate(cx, retObj, classObj);
+		*rval = OBJECT_TO_JSVAL(retObj);
+	}
+	JS_EndRequest(cx);
+	return JS_TRUE;
+}
+
+JSBool wmi_reset_enum(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	IEnumWbemClassObject * enumObj = (IEnumWbemClassObject*)JS_GetPrivate(cx, obj);
+	enumObj->Reset();
+	wmi_next_enum(cx, obj, argc, argv, rval);
+	return JS_TRUE;
+}
+
+void wmi_enum_cleanup(JSContext * cx, JSObject * obj)
+{
+	IEnumWbemClassObject * enumObj = (IEnumWbemClassObject*)JS_GetPrivate(cx, obj);
+	if(enumObj)
+		enumObj->Release();
+}
+
+JSBool wmi_enum_props(JSContext * cx, JSObject * obj)
+{
+	IWbemClassObject * classObj = (IWbemClassObject*)JS_GetPrivate(cx, obj);
+	if(classObj == NULL)
+		return JS_FALSE;
+	classObj->BeginEnumeration(0);
+	_bstr_t propName;
+	JS_BeginRequest(cx);
+	while(classObj->Next(0, propName.GetAddress(), NULL, NULL, NULL) == WBEM_S_NO_ERROR)
+		JS_DefineUCProperty(cx, obj, (jschar*)(LPWSTR)propName, propName.length(), JSVAL_VOID, wmi_getter, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED);
+	JS_EndRequest(cx);
+	classObj->EndEnumeration();
 	return JS_TRUE;
 }
 
@@ -382,7 +437,15 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ 0 }
 	};
 
+	JSConstDoubleSpec consts[] = {
+		{ WBEM_FLAG_USE_AMENDED_QUALIFIERS, "WBEM_FLAG_USE_AMENDED_QUALIFIERS", 0, 0 },
+		{ WBEM_FLAG_RETURN_WBEM_COMPLETE, "WBEM_FLAG_RETURN_WBEM_COMPLETE", 0, 0 },
+		{ WBEM_FLAG_DIRECT_READ, "WBEM_FLAG_DIRECT_READ", 0, 0 },
+		{ 0 }
+	};
+
 	JS_BeginRequest(cx);
+	JS_DefineConstDoubles(cx, global, consts);
 	wmiServicesProto = JS_InitClass(cx, global, NULL, &wmiServices, NULL, 0, NULL, wmiServiceFunctions, NULL, NULL);
 	wmiEnumProto = JS_InitClass(cx, global, NULL, &wmiEnum, NULL, 0, NULL, wmiEnumFunctions, NULL, NULL);
 	wmiClassProto = JS_InitClass(cx, global, NULL, &wmiClass, NULL, 0, NULL, NULL, NULL, NULL);

@@ -12,6 +12,8 @@
 #define JS_THREADSAFE
 // Windows Header Files:
 #include <windows.h>
+#include <Wincrypt.h>
+#pragma comment(lib, "crypt32.lib")
 #include "jsapi.h"
 #include "jsstr.h"
 
