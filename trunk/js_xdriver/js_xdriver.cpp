@@ -5,6 +5,8 @@
 #include "difxapi.h"
 #include <msi.h>
 #include <commctrl.h>
+#include <Wincrypt.h>
+#pragma comment(lib, "crypt32.lib")
 
 JSBool xdriver_install_inf(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
@@ -287,6 +289,60 @@ JSBool set_progress(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	return JS_TRUE;
 }
 
+char bytetochar(BYTE c)
+{
+	if(c >= 0x00 && c <= 0x09)
+		return '0' + c;
+	if(c >= 0x0a && c <= 0x0f)
+		return 'a' + (c - 0x0a);
+	return 'f';
+}
+
+JSBool hashsomearbitrarystuff(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	*rval = JSVAL_FALSE;
+	if(argc == 0)
+		return JS_TRUE;
+
+	HCRYPTPROV hProv; 
+	if(!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+		return JS_TRUE;
+
+	HCRYPTHASH hHash;
+	if(!CryptCreateHash(hProv, CALG_MD5, NULL, 0, &hHash))
+	{
+		CryptReleaseContext(hProv, 0);
+		return JS_TRUE;
+	}
+
+	JS_BeginRequest(cx);
+	JSString * inString = JS_ValueToString(cx, *argv);
+	CryptHashData(hHash, (LPBYTE)JS_GetStringChars(inString), JS_GetStringLength(inString) * sizeof(jschar), 0);
+
+	DWORD hashLen;
+	DWORD bufSize = sizeof(DWORD);
+	CryptGetHashParam(hHash, HP_HASHSIZE, (LPBYTE)&hashLen, &bufSize, 0);
+	LPBYTE theHash = (LPBYTE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, hashLen);
+	CryptGetHashParam(hHash, HP_HASHVAL, theHash, &hashLen, 0);
+	CryptDestroyHash(hHash);
+	CryptReleaseContext(hProv, 0);
+
+	bufSize = (hashLen * 2) + 1;
+	LPSTR hashString = (LPSTR)JS_malloc(cx, bufSize);
+	memset(hashString, 0, bufSize);
+	DWORD c = 0;
+	for(DWORD i = 0; i < hashLen; i++)
+	{
+		hashString[c++] = bytetochar(theHash[i] >> 4);
+		hashString[c++] = bytetochar(theHash[i] & 0x0f);
+	}
+	HeapFree(GetProcessHeap(), 0, theHash);
+	JSString * outString = JS_NewString(cx, hashString, bufSize);
+	*rval = STRING_TO_JSVAL(outString);
+	JS_EndRequest(cx);
+	return JS_TRUE;	
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -314,6 +370,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "MsiInstallProduct", msi_install_product, 2, 0, 0 },
 		{ "MsiSetInternalUI", msi_set_internal_ui, 2, 0, 0 },
 		{ "xDriverCreateDialog", create_ui, 0, 0, 0 },
+		{ "MD5", hashsomearbitrarystuff, 1, 0, 0 },
 		{ 0 },
 	};
 

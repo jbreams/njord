@@ -265,6 +265,15 @@ void InitWin32s(JSContext * cx, JSObject * global)
 		{ MB_ICONSTOP, "MB_ICONSTOP", 0, 0 },
 		{ MB_ICONERROR, "MB_ICONERROR", 0, 0 },
 		{ MB_ICONHAND, "MB_ICONHAND", 0, 0 },
+		{ IDABORT, "IDABORT", 0, 0 },
+		{ IDCANCEL, "IDCANCEL", 0, 0 },
+		{ IDCONTINUE, "IDCONTINUE", 0, 0 },
+		{ IDIGNORE, "IDIGNORE", 0, 0 },
+		{ IDNO, "IDNO", 0, 0 },
+		{ IDOK, "IDOK", 0, 0 },
+		{ IDRETRY, "IDRETRY", 0, 0 },
+		{ IDTRYAGAIN, "IDTRYAGAIN", 0, 0 },
+		{ IDYES, "IDYES", 0, 0 },
 		{ 0 },
 	};
 
