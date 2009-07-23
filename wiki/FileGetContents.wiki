@@ -1,0 +1,5 @@
+FileGetContents will retrieve the contents of a file as a string. The function will try to determine whether the file being accessed is unicode or not and act accordingly when creating the string. 
+
+The function allocates memory for the string from the SpiderMonkey heap, and so is limited by the size of that heap; as such, it assumes that the size of the SpiderMonkey heap will never be larger than 4GB and only uses the low double word of the file size when creating its buffer. If the file is too large, it will return false and set the last error code to ERROR_OUTOFMEMORY. If, on the other hand, the buffer is able to be allocated but the string object fails to be created, it will report an OutOfMemory exception to the SpiderMonkey runtime. This behavior is so that the script can gracefully recover from trying to read a file that is too large, but properly throws an exception when there is a true runtime problem.
+
+The function takes one argument, a string, which is the path to the file to be read. On success, it returns the contents of the file as a string. On failure, it returns false. More information about the error can be retrieved from [GetLastError]
