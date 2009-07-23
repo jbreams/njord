@@ -9,7 +9,7 @@ On success, the function returns a JavaScript object that has the results of the
 
 ==Remarks==
 
-For more information about defining search criteria, see the MSDN documentation on [FindFirstFile|http://msdn.microsoft.com/en-us/library/aa364418(VS.85).aspx].
+For more information about defining search criteria, see the MSDN documentation on [http://msdn.microsoft.com/en-us/library/aa364418(VS.85).aspx FindFirstFile].
 
 The JavaScript object that's returned from FindFirstFile encapsulates all the fields of the [http://msdn.microsoft.com/en-us/library/aa365740(VS.85).aspx WIN32_FIND_DATA] structure. They are summarized below.
 
