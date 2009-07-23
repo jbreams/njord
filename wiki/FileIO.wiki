@@ -1,0 +1,12 @@
+#summary Describes the functions related to File IO in the nJord platform.
+The nJord Platform offers some basic functions for manipulating the filesystem and reading/writing plain text files built into the core executable. The functions included in the basicfile module are:
+
+ * [CopyFile]
+ * [MoveFile]
+ * [DeleteFile]
+ * [CreateDirectory]
+ * [RemoveDirectory]
+ * [FileGetContents]
+ * [FileSetContents]
+ * [GetFileAttributes]
+ * [SetFileAttributes]
