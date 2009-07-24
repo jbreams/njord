@@ -1,0 +1,5 @@
+RemoveChild will remove a child. It will return the removed child [Gecko.DOMNode DOMNode] on success or false on failure.
+
+==Parameters==
+|| Name || Type || Description ||
+|| RefChild || [Gecko.DOMNode DOMNode] || The child to be removed. ||

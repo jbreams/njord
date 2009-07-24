@@ -1,0 +1,15 @@
+GeckoView encapsulates a single browser window.
+
+==Methods==
+|| *Name* || *Description* ||
+|| [Gecko.LoadData LoadData] || Loads a string representing and HTML document into the browser window and optionally waits for a DOM event. ||
+|| [Gecko.LoadURI LoadURI] || Loads a URI into the browser window and optionally waits for a DOM event. ||
+|| [Gecko.Destroy Destroy] || Destroys the window. ||
+|| [Gecko.RegisterEvent RegisterEvent ] || Registers a DOM event for either a callback or a wait with the browser window. ||
+|| [Gecko.UnregisterEvent UnregisterEvent ] || Unregisters a single or all registered events. ||
+|| [Gecko.WaitForStuff WaitForStuff] || Waits for a single specified DOM event to become signaled. ||
+|| [Gecko.WaitForThings WaitForThings] || Waits for all registered events to become signaled. ||
+|| [Gecko.GetDOM GetDOM] || Returns the DOMDocument for the loaded page. ||
+|| [Gecko.GetInput GetInput] || Gets the current value of a form input. ||
+|| [Gecko.GetElementByID GetElementByID] || Gets a DOM node by its ID. ||
+|| [Gecko.ImportDOM ImportDOM] || Imports a DOM node from a string and adds, but does not attach, it to the loaded document. ||

@@ -1,0 +1,1 @@
+Perform encapsulates the [http://curl.haxx.se/libcurl/c/curl_easy_perform.html curl_easy_perform] function and returns the result of the cURL session as a string. It takes no arguments and returns an error code on failure. 

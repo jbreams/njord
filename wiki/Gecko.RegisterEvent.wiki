@@ -1,0 +1,7 @@
+Registers an event for a callback or wait notification from the current DOM. Registrations last the lifetime of the DOM document to which they apply, all registrations made with RegisterEvent are removed when [Gecko.LoadData LoadData] or [Gecko.LoadURI LoadURI] is called. The function returns true on success and false on failure. 
+
+==Parameters==
+|| *Name* || *Type* || *Description* ||
+|| Target || [Gecko.DOMNode DOMNode] || The DOM node that is the target of the event ||
+|| Event || String || The event to be registered ||
+|| Callback || String || The name of the function to be called if the event fires ||

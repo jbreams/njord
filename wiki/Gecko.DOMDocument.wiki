@@ -1,0 +1,13 @@
+DOMDocument inherits all the properties and methods from [Gecko.DOMNode DOMNode].
+
+==Methods==
+
+|| *Name* || *Description* ||
+|| [Gecko.GetElementByID GetElementByID] || Gets an element from the document by its ID attribute ||
+|| [Gecko.CreateTextNode CreateTextNode] || Creates a new text node and returns it as a [Gecko.DOMNode DOMNode] object. ||
+|| [Gecko.CreateElement CreateElement] || Creates a new element node and returns it as a [Gecko.DOMNode DOMNode] object. ||
+
+==Properties==
+
+|| *Name* || *Type* || *Description* ||
+|| documentElement | [Gecko.DOMNode DOMNode] || Allows access to the document element that is at the top of the DOM tree. ||

@@ -1,0 +1,1 @@
+Destroy will destroy the browser window, the GeckoView will be invalid after this call. It takes no arguments and returns nothing.

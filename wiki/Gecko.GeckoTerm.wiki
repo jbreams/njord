@@ -1,0 +1,1 @@
+GeckoTerm will stop a running UI thread and wait for Gecko to terminate. If no instance of Gecko is running, this call does nothing. It takes no parameters.

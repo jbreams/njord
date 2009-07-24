@@ -1,0 +1,1 @@
+GetElemenyByID will return a new [Gecko.DOMNode DOMNode] that represents the element in the loaded document with the specified id attribute. The method takes one parameter, the id of the element to retrieve. On failure, it will return false.
