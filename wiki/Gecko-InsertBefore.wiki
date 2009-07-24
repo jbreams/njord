@@ -1,6 +1,0 @@
-InsertBefore will insert a child [Gecko.DOMNode DOMNode] before another [Gecko.DOMNode DOMNode]. If the function succeeds, it will return the new child node, otherwise it will return false.
-
-==Parameters==
-|| *Name* || *Type* || *Description* ||
-|| NewChild || [Gecko.DOMNode DOMNode] || The node to be inserted |
-|| RefChild || [Gecko.DOMNode DOMNode] || The node that the new node should be before |

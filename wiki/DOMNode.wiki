@@ -2,14 +2,14 @@ A DOMNode object represents a single node or element in the DOM of the loaded do
 
 ==Methods==
 || *Name* || *Description* ||
-|| [Gecko.SetAttribute SetAttribute] || Sets an attribute on an element (only valid on an element). |
-|| [Gecko.RemoveAttribute RemoveAttribute] || Removes an attribute from and element (only valid on an element). |
-|| [Gecko.HasAttribute HasAttributeAttribute] || Returns true if an element has a specified attribute (only valid on an element). |
-|| [Gecko.GetElementsByTagName GetElementsByTagName] || Returns an array of element nodes with the specified tag name. |
-|| [Gecko.InsertBefore InsertBefore] || Inserts a child node before a specified reference node. |
-|| [Gecko.ReplaceChild ReplaceChild] || Replaces a child node with another node. |
-|| [Gecko.RemoveChild RemoveChild] || Removes a specified child node. |
-|| [Gecko.AppendChild AppendChild] || Appends a child node. |
+|| [SetAttribute SetAttribute] || Sets an attribute on an element (only valid on an element). |
+|| [RemoveAttribute RemoveAttribute] || Removes an attribute from and element (only valid on an element). |
+|| [HasAttribute HasAttributeAttribute] || Returns true if an element has a specified attribute (only valid on an element). |
+|| [GetElementsByTagName GetElementsByTagName] || Returns an array of element nodes with the specified tag name. |
+|| [InsertBefore InsertBefore] || Inserts a child node before a specified reference node. |
+|| [ReplaceChild ReplaceChild] || Replaces a child node with another node. |
+|| [RemoveChild RemoveChild] || Removes a specified child node. |
+|| [AppendChild AppendChild] || Appends a child node. |
 
 ==Properties==
 || *Name* || *Type* || *Description* ||

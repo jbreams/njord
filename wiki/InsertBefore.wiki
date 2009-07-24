@@ -1,0 +1,6 @@
+InsertBefore will insert a child [DOMNode DOMNode] before another [DOMNode DOMNode]. If the function succeeds, it will return the new child node, otherwise it will return false.
+
+==Parameters==
+|| *Name* || *Type* || *Description* ||
+|| NewChild || [DOMNode DOMNode] || The node to be inserted |
+|| RefChild || [DOMNode DOMNode] || The node that the new node should be before |

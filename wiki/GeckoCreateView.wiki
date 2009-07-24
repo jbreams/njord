@@ -1,4 +1,4 @@
-GeckoCreateView will create a new [Gecko.GeckoView] and return the object, or false on failure. This function assumes that GeckoInit has been called and has succeeded, calls to this function where the GRE has not been initialized will result in a deadlocked critical section - don't do that. 
+GeckoCreateView will create a new [GeckoView] and return the object, or false on failure. This function assumes that GeckoInit has been called and has succeeded, calls to this function where the GRE has not been initialized will result in a deadlocked critical section - don't do that. 
 
 ==Parameters==
 || Name || Type || Description ||

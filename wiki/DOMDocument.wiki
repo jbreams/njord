@@ -1,0 +1,13 @@
+DOMDocument inherits all the properties and methods from [DOMNode DOMNode].
+
+==Methods==
+
+|| *Name* || *Description* ||
+|| [GetElementByID GetElementByID] || Gets an element from the document by its ID attribute ||
+|| [CreateTextNode CreateTextNode] || Creates a new text node and returns it as a [DOMNode DOMNode] object. ||
+|| [CreateElement CreateElement] || Creates a new element node and returns it as a [DOMNode DOMNode] object. ||
+
+==Properties==
+
+|| *Name* || *Type* || *Description* ||
+|| documentElement | [DOMNode DOMNode] || Allows access to the document element that is at the top of the DOM tree. ||

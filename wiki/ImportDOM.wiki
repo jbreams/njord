@@ -1,0 +1,1 @@
+ImportDOM will take XML or HTML as a string and import them into the loaded document, but will not attach them. The function will return the imported node as a [DOMNode DOMNode], that the caller must then position inside the document. It takes one argument which is a string representation of the XML to be loaded.

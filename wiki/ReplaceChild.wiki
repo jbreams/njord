@@ -1,0 +1,6 @@
+ReplaceChild will replace a child [DOMNode DOMNode] with a new [DOMNode DOMNode]. If success, it will return the new child node, otherwise it will return false.
+
+==Parameters==
+|| *Name* || *Type* || *Description* ||
+|| NewChild || [DOMNode DOMNode] || The new child ||
+|| RefChild || [DOMNode DOMNode] || The child that is to be replaced ||
