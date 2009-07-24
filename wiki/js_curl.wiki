@@ -2,9 +2,9 @@ js_curl provides a binding for the cURL libraries for URL handling. A cURL reque
 
 ==Methods==
 
- *  [Curl.SetOpt SetOpt] - Sets cURL options on the cURL easy session encapsulated by the class.
- *  [Curl.Perform Perform] - Performs the cURL session and returns the results as a string.
- *  [Curl.SaveAs SaveAs] - Same as [Perform], but saves the returned content as a file rather than return it as a string.
+ *  [SetOpt] - Sets cURL options on the cURL easy session encapsulated by the class.
+ *  [Perform] - Performs the cURL session and returns the results as a string.
+ *  [SaveAs] - Same as [Perform], but saves the returned content as a file rather than return it as a string.
 
 ==Remarks==
 
