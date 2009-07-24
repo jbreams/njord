@@ -1,0 +1,1 @@
+GetCurrentDirectory will return the directory the nJord process is currently running from, its working directory, as a string. It takes no parameters and will return false on a failure. For more information about a failure, call [GetLastError].

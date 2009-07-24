@@ -1,0 +1,11 @@
+The nJord Platform has miscellaneous functions for setting up the execution environment and handling errors. These functions are exposed from the win32s module.
+
+ * [SetEnv]
+ * [GetEnv]
+ * [GetLastError]
+ * [GetLastErrorMessage]
+ * [SetCurrentDirectory]
+ * [GetCurrentDirectory]
+ * [SetDllDirectory]
+ * [MessageBox]
+ * [Sleep]
