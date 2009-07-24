@@ -1,0 +1,10 @@
+RegLoadHive will load a specified registry hive into either HKEY_USERS or HKEY_LOCAL_MACHINE. On success, it will return true; on failure it will return false - more information about the failure can be retrieved with [GetLastError].
+
+==Parameters==
+|| *Name* || *Type* || *Description* ||
+|| parent || UInt32 || Either HKEY_USERS or HKEY_LOCAL_MACHINE ||
+|| fileName || String || The path to the registry hive to load ||
+|| keyName || String || The name of the key this hive will be loaded into in the registry (optional) ||
+
+==Remarks==
+This function requires administrative privileges to work properly, it will attempt to adjust the process token to have the SE_RESTORE_NAME and SE_BACKUP_NAME privileges enabled. The key name is optional, and the name of the key will be the name of the file if not specified.

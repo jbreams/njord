@@ -1,0 +1,25 @@
+RegCreateKey will create new registry keys or open existing ones. It returns the resulting key as a [RegKey] object or false on failure.
+
+==Parameters==
+|| *Name* || *Type* || *Description* ||
+|| Hive || UInt32 || The hive that contains or will contain the specified key. ||
+|| subKey || String || the path to the subkey that will be opened or created ||
+|| desiredAccess || UInt32 || The desired access to the key. ||
+
+==Hives==
+
+The first parameter for the function specifies which hive the key is located. The hives are defined statically, based on the hives from the [http://msdn.microsoft.com/en-us/library/ms724836(VS.85).aspx MSDN documentation]. 
+
+==Desired Access==
+By default, the function will try to acquire KEY_READ | KEY_WRITE access to the created/opened key, but this can be overridden by the desiredAccess parameter. This parameter can contain one or more of the following values.
+
+|| *Value* || *Description* ||
+|| KEY_ALL_ACCESS || Provides all possible rights to the key ||
+|| KEY_CREATE_SUB_KEY || Allows for the creation of sub-keys under the key ||
+|| KEY_ENUMERATE_SUB_KEYS || Allows enumerating sub keys ||
+|| KEY_QUERY_VALUE || Required to query the values of a registry key ||
+|| KEY_SET_VALUE || Required to create, delete, or set a registry value ||
+|| KEY_READ || Combines the STANDARD_RIGHTS_READ, KEY_QUERY_VALUE, KEY_ENUMERATE_SUB_KEYS, and KEY_NOTIFY values ||
+|| KEY_WRITE || Combines the STANDARD_RIGHTS_WRITE, KEY_SET_VALUE, and KEY_CREATE_SUB_KEY access rights ||
+|| KEY_WOW64_32KEY || Indicates that an application on 64-bit Windows should operate on the 32-bit registry view ||
+|| KEY_WOW64_64KEY || Indicates that an application on 64-bit Windows should operate on the 64-bit registry view ||

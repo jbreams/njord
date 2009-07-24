@@ -1,0 +1,10 @@
+RegUnloadHive will unload a hive that was previously loaded with [RegLoadHive]. On success it will return true, and will return false on failure - more information about the failure can be retrieved with [GetLastError]. 
+
+==Parameters==
+|| *Name* || *Type* || *Description* ||
+|| parent || UInt32 || Either HKEY_USERS or HKEY_LOCAL_MACHINE ||
+|| keyName || String || The name of the subkey to be unloaded. ||
+
+==Remarks==
+
+This function requires administrative privileges to work properly, it will attempt to adjust the process token to have the SE_RESTORE_NAME and SE_BACKUP_NAME privileges enabled. The keyName should be the name used to load the hive in [RegLoadHive].

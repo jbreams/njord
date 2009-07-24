@@ -1,0 +1,5 @@
+The nJord Platform exposes functionality for editing the Windows registry. The majority of the work for editing the registry is done using the [RegKey] class. The [RegKey] class can be created either by using the [RegOpenKey] or [RegCreateKey] functions. It provides all the functionality required for manipulating values and subkeys. Additionally, there are global functions for manipulating hives and keys:
+
+ * [RegLoadHive]
+ * [RegUnloadHive]
+ * [RegDeleteKey]

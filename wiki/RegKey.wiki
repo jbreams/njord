@@ -1,0 +1,14 @@
+The RegKey object encapsulates a single open registry key and allows basic operations on it.
+
+==Methods==
+|| *Name* || *Description* ||
+|| [RegCreateKey Create] || Uses the existing object to create or open a new registry key ||
+|| [RegOpenKey  Open] || Uses the existing object to open a new registry key ||
+|| [RegSetValue SetValue] || Sets a value on the registry key ||
+|| [RegDeleteValue DeleteValue] || Deletes a value from the registry key ||
+|| [RegQueryValue QueryValue] || Queries and returns a value from the registry key ||
+|| [RegEnumValues EnumValues] || Returns an array with the name of the values of the key ||
+|| [RegEnumKeys EnumKeys] || Returns an array with the names of the sub-keys of the key ||
+|| [RegDeleteSubKey DeleteSubKey] || Deletes a subkey from the key ||
+|| [RegFlushKey Flush] || Flushes changes made to a registry key to disk synchronously ||
+|| [RegCloseKey Close] || Closes they key ||

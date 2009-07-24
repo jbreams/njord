@@ -1,0 +1,14 @@
+QueryValue will query a value from the registry and return it as an appropriate JavaScript type. It takes one argument, the  name of the value to be queried. If the function succeeds, it will return true; otherwise, it will return false - more information about the failure can be retrieved from [GetLastError].
+
+==Type Mappings==
+The function will try to match up the value from the registry to the appropriate JavaScript type. Below is a table that maps what registry types map to which JavaScript types.
+
+|| *Registry Type* || *JavaScript Type* ||
+|| REG_DWORD || jsdouble (unsigned 32-bit integer) ||
+|| REG_QWORD || jsdouble (unsigned 64-bit integer) ||
+|| REG_MULTI_SZ || array object of strings ||
+|| REG_SZ || string ||
+|| REG_EXPAND_SZ || string ||
+|| REG_LINK || string ||
+
+Other values are not supported and will not be processed and the function will return null.
