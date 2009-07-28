@@ -1,0 +1,1 @@
+UnregisterHotKey will unregister a hotkey from the hotkey thread. It takes one parameter, the ID number of the hotkey that is to be removed (see [RegisterHotKey]). It will return true on success and false on failure. When you unregister the last hotkey, the function will shutdown the hotkey thread.
