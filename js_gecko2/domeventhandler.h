@@ -20,40 +20,21 @@
 
 class PrivateData;
 
-class EventRegistration
-{
-public:
-	EventRegistration();
-	~EventRegistration();
-
-	nsIDOMNode * target;
-	nsString domEvent;
-	LPSTR callback;
-	HANDLE windowsEvent;
-
-	EventRegistration * next;
-};
-
 class DOMEventListener : public nsIDOMEventListener
 {
 public:
-	DOMEventListener(PrivateData * aOwner);
+	DOMEventListener(PrivateData * aOwner, LPSTR callback);
 	virtual ~DOMEventListener();
 
 	NS_DECL_ISUPPORTS
 	NS_DECL_NSIDOMEVENTLISTENER
 
-	BOOL RegisterEvent(nsIDOMNode *target, LPWSTR type, LPSTR callback);
-	void UnregisterEvent(nsIDOMNode * targetNode, LPWSTR type);
-	void UnregisterAll();
-	BOOL WaitForSingleEvent(nsIDOMNode *target, LPWSTR type, DWORD timeout);
-	BOOL WaitForAllEvents(DWORD timeout, BOOL waitAll, JSObject ** out);
+	DOMEventListener * next;
+	BOOL active;
+	HANDLE GetHandle();
 
 private:
-	PrivateData * mOwner;
-	EventRegistration * head;
-	DWORD regCount;
-	CRITICAL_SECTION headLock;
-	HANDLE addRemoveMutex;
-
+	HANDLE myHandle;
+	LPSTR callBack;
+	PrivateData * aOwner;
 };

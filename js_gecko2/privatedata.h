@@ -28,6 +28,8 @@ public:
 		mChrome = NULL;
 		mNativeWindow = NULL;
 		allowClose = FALSE;
+		mDOMListener = NULL;
+		nDOMListeners = 0;
 	}
 	~PrivateData()
 	{
@@ -35,6 +37,7 @@ public:
 
 	WebBrowserChrome * mChrome;
 	DOMEventListener * mDOMListener;
+	DWORD nDOMListeners;
 	RECT requestedRect;
 	BOOL initialized;
 	BOOL allowClose;
