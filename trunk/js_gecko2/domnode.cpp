@@ -68,22 +68,21 @@ JSBool buildNodeList(nsIDOMNodeList * nodeList, JSContext * cx, JSObject * paren
 	nodeList->GetLength(&nNodes);
 	for(PRUint32 i = 0; i < nNodes; i++)
 	{
-		nsIDOMNode * curNode;
-		nodeList->Item(i, &curNode);
+		nsCOMPtr<nsIDOMNode> curNode;
+		nodeList->Item(i, getter_AddRefs(curNode));
 
 		JSObject * curNodeObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, parent);
-		JS_SetPrivate(cx, curNodeObj, curNode);
 		jsval curNodeVal = OBJECT_TO_JSVAL(curNodeObj);
 		JS_DefineElement(cx, nodeArray, i, curNodeVal, NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY);
+		JS_SetPrivate(cx, curNodeObj, curNode);
 	}
 	return JS_TRUE;
 }
 JSBool setAttribute(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JS_BeginRequest(cx);
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMElement * mElement = NULL;
-	mNode->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)&mElement);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMElement> mElement = do_QueryInterface(mNode);
 	if(mElement == NULL)
 	{
 		*rval = JSVAL_FALSE;
@@ -107,9 +106,8 @@ JSBool setAttribute(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 JSBool removeAttribute(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JS_BeginRequest(cx);
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMElement * mElement = NULL;
-	mNode->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)&mElement);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMElement> mElement = do_QueryInterface(mNode);
 	if(mElement == NULL)
 	{
 		*rval = JSVAL_FALSE;
@@ -133,9 +131,8 @@ JSBool removeAttribute(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 JSBool hasAttribute(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JS_BeginRequest(cx);
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMElement * mElement;
-	mNode->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)&mElement);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMElement> mElement = do_QueryInterface(mNode);
 	if(mElement == NULL)
 	{
 		*rval = JSVAL_FALSE;
@@ -161,9 +158,8 @@ JSBool hasAttribute(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 JSBool stringPropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 {
 	JS_BeginRequest(cx);
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMElement * mElement = NULL;
-	mNode->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)&mElement);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMElement> mElement = do_QueryInterface(mNode);
 
 	nsString value;
 	switch(JSVAL_TO_INT(idval))
@@ -180,15 +176,11 @@ JSBool stringPropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 		break;
 	case TEXT_PROP:
 		{
-			nsIDOM3Node * l3Node;
-			mNode->QueryInterface(NS_GET_IID(nsIDOM3Node), (void**)&l3Node);
+			nsCOMPtr<nsIDOM3Node> l3Node = do_QueryInterface(mNode);
 			l3Node->GetTextContent(value);
-			l3Node->Release();
 		}
 		break;
 	}
-	if(mElement)
-		mElement->Release();
 
 	if(value.IsEmpty())
 		*vp = JSVAL_NULL;
@@ -204,7 +196,7 @@ JSBool stringPropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 JSBool stringPropSetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 {
 	JS_BeginRequest(cx);
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 	JSString * valStr = JS_ValueToString(cx, *vp);
 	jschar * valChars = JS_GetStringChars(valStr);
 
@@ -217,10 +209,8 @@ JSBool stringPropSetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 		break;
 	case TEXT_PROP:
 		{
-			nsIDOM3Node * l3Node;
-			mNode->QueryInterface(NS_GET_IID(nsIDOM3Node), (void**)&l3Node);
+			nsCOMPtr<nsIDOM3Node> l3Node = do_QueryInterface(mNode);
 			l3Node->SetTextContent(nsDependentString(valChars));
-			l3Node->Release();
 		}
 		break;
 	}
@@ -232,9 +222,8 @@ JSBool stringPropSetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 
 JSBool getElementsByTagName(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMElement * mElement;
-	mNode->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)&mElement);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMElement> mElement = do_QueryInterface(mNode);
 	if(mElement == NULL)
 	{
 		*rval = JSVAL_FALSE;
@@ -252,8 +241,6 @@ JSBool getElementsByTagName(JSContext * cx, JSObject * obj, uintN argc, jsval * 
 	nsDependentString aTagName(tagName);
 	nsIDOMNodeList * mNodeList;
 	mElement->GetElementsByTagName(aTagName, &mNodeList);
-	mElement->Release();
-
 	buildNodeList(mNodeList, cx, obj, rval);
 	mNodeList->Release();
 	JS_EndRequest(cx);
@@ -264,26 +251,25 @@ JSBool getElementsByTagName(JSContext * cx, JSObject * obj, uintN argc, jsval * 
 JSBool nodePropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 {
 	JS_BeginRequest(cx);
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 	idval = JSVAL_TO_INT(idval);
-	nsIDOMNode * retNode = NULL;
+	nsCOMPtr<nsIDOMNode> retNode = NULL;
 
 	if(idval == PARENTNODE_PROP)
-		mNode->GetParentNode(&retNode);
+		mNode->GetParentNode(getter_AddRefs(retNode));
 	else if(idval == FIRSTCHILD_PROP)
-		mNode->GetFirstChild(&retNode);
+		mNode->GetFirstChild(getter_AddRefs(retNode));
 	else if(idval == LASTCHILD_PROP)
-		mNode->GetLastChild(&retNode);
+		mNode->GetLastChild(getter_AddRefs(retNode));
 	else if(idval == PREVIOUSSIBLING_PROP)
-		mNode->GetPreviousSibling(&retNode);
+		mNode->GetPreviousSibling(getter_AddRefs(retNode));
 	else if(idval == NEXTSIBLING_PROP)
-		mNode->GetNextSibling(&retNode);
+		mNode->GetNextSibling(getter_AddRefs(retNode));
 
 	if(retNode == NULL)
 		*vp = JSVAL_NULL;
 	else
 	{
-		retNode->AddRef();
 		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
 		*vp = OBJECT_TO_JSVAL(retObj);
 		JS_SetPrivate(cx, retObj, retNode);
@@ -295,7 +281,7 @@ JSBool nodePropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 JSBool childGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 {
 	JS_BeginRequest(cx);
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 	JSString * idvalStr = JS_ValueToString(cx, idval);
 	jschar * idvalChars = JS_GetStringChars(idvalStr);
 	if(_wcsicmp(idvalChars, TEXT("childNodes")) == 0)
@@ -313,7 +299,7 @@ JSBool childGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 JSBool insertBefore(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSObject * newChildObj, *refChildObj;
-	nsIDOMNode * newChild, *refChild, *mNode, *outNode;
+	nsCOMPtr<nsIDOMNode> newChild, refChild, mNode, outNode;
 
 	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "o o", &newChildObj, &refChildObj))
@@ -333,7 +319,7 @@ JSBool insertBefore(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	refChild = (nsIDOMNode*)JS_GetPrivate(cx, refChildObj);
 	mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 
-	if(mNode->InsertBefore(newChild, refChild, &outNode) == NS_OK)
+	if(mNode->InsertBefore(newChild, refChild, getter_AddRefs(outNode)) == NS_OK)
 	{
 		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
 		*rval = OBJECT_TO_JSVAL(retObj);
@@ -347,7 +333,7 @@ JSBool insertBefore(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 JSBool replaceChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSObject * newChildObj, *refChildObj;
-	nsIDOMNode * newChild, *refChild, *mNode, *outNode;
+	nsCOMPtr<nsIDOMNode> newChild, refChild, mNode, outNode;
 
 	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "o o", &newChildObj, &refChildObj))
@@ -367,7 +353,7 @@ JSBool replaceChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	refChild = (nsIDOMNode*)JS_GetPrivate(cx, refChildObj);
 	mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 
-	if(mNode->ReplaceChild(newChild, refChild, &outNode) == NS_OK)
+	if(mNode->ReplaceChild(newChild, refChild, getter_AddRefs(outNode)) == NS_OK)
 	{
 		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
 		*rval = OBJECT_TO_JSVAL(retObj);
@@ -382,7 +368,7 @@ JSBool replaceChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 JSBool removeChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSObject *refChildObj;
-	nsIDOMNode *refChild, *mNode, *outNode;
+	nsCOMPtr<nsIDOMNode> refChild, mNode, outNode;
 
 	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "o", &refChildObj))
@@ -401,7 +387,7 @@ JSBool removeChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	refChild = (nsIDOMNode*)JS_GetPrivate(cx, refChildObj);
 	mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 
-	if(mNode->RemoveChild(refChild, &outNode) == NS_OK)
+	if(mNode->RemoveChild(refChild, getter_AddRefs(outNode)) == NS_OK)
 	{
 		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
 		*rval = OBJECT_TO_JSVAL(retObj);
@@ -416,7 +402,7 @@ JSBool removeChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 JSBool appendChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	JSObject *refChildObj;
-	nsIDOMNode *refChild, *mNode, *outNode;
+	nsCOMPtr<nsIDOMNode> refChild, mNode, outNode;
 
 	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "o", &refChildObj))
@@ -435,7 +421,7 @@ JSBool appendChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	refChild = (nsIDOMNode*)JS_GetPrivate(cx, refChildObj);
 	mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 
-	if(mNode->AppendChild(refChild, &outNode) == NS_OK)
+	if(mNode->AppendChild(refChild, getter_AddRefs(outNode)) == NS_OK)
 	{
 		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
 		*rval = OBJECT_TO_JSVAL(retObj);
@@ -458,9 +444,8 @@ JSObject * lDOMDocProto;
 
 JSBool createElement(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMDocument * mDoc;
-	mNode->QueryInterface(NS_GET_IID(nsIDOMDocument), (void**)&mDoc);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMDocument>mDoc = do_QueryInterface(mNode);
 	if(mDoc == NULL)
 	{
 		*rval = JSVAL_FALSE;
@@ -471,15 +456,13 @@ JSBool createElement(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "W", &tagName))
 	{
-		mDoc->Release();
 		JS_ReportError(cx, "Error parsing arguments in createElement");
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
-	nsIDOMElement * nElement;
-	mDoc->CreateElement(nsDependentString(tagName), &nElement);
-	mDoc->Release();
+	nsCOMPtr<nsIDOMElement> nElement;
+	mDoc->CreateElement(nsDependentString(tagName), getter_AddRefs(nElement));
 	if(nElement == NULL)
 	{
 		JS_EndRequest(cx);
@@ -487,9 +470,7 @@ JSBool createElement(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 		return JS_TRUE;
 	}
 
-	nsIDOMNode * nNode;
-	nElement->QueryInterface(NS_GET_IID(nsIDOMNode), (void**)&nNode);
-	nElement->Release();
+	nsCOMPtr<nsIDOMNode>nNode = do_QueryInterface(nElement);
 
 	JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
 	*rval = OBJECT_TO_JSVAL(retObj);
@@ -499,9 +480,8 @@ JSBool createElement(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 
 JSBool createTextNode(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	nsIDOMNode* mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMDocument * mDoc;
-	mNode->QueryInterface(NS_GET_IID(nsIDOMDocument), (void**)&mDoc);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMDocument>mDoc = do_QueryInterface(mNode);
 	if(mDoc == NULL)
 	{
 		*rval = JSVAL_FALSE;
@@ -512,15 +492,13 @@ JSBool createTextNode(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "W", &tagName))
 	{
-		mDoc->Release();
 		JS_ReportError(cx, "Error parsing arguments in createElement");
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
-	nsIDOMText * nText;
-	mDoc->CreateTextNode(nsDependentString(tagName), &nText);
-	mDoc->Release();
+	nsCOMPtr<nsIDOMText> nText;
+	mDoc->CreateTextNode(nsDependentString(tagName), getter_AddRefs(nText));
 	if(nText == NULL)
 	{
 		JS_EndRequest(cx);
@@ -528,10 +506,7 @@ JSBool createTextNode(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		return JS_TRUE;
 	}
 
-	nsIDOMNode * nNode;
-	nText->QueryInterface(NS_GET_IID(nsIDOMNode), (void**)&nNode);
-	nText->Release();
-
+	nsCOMPtr<nsIDOMNode> nNode = do_QueryInterface(nText);
 	JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
 	*rval = OBJECT_TO_JSVAL(retObj);
 	JS_SetPrivate(cx, retObj, nNode);
@@ -540,23 +515,20 @@ JSBool createTextNode(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 
 JSBool getElementByID(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *rval)
 {
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMDocument * mDoc;
-	mNode->QueryInterface(NS_GET_IID(nsIDOMDocument), (void**)&mDoc);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMDocument>mDoc = do_QueryInterface(mNode);
 
 	LPWSTR elementID;
 	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "W", &elementID))
 	{
-		mDoc->Release();
 		JS_ReportError(cx, "Error parsing arguments in getElementByID");
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
 
-	nsIDOMElement * rElement;
-	mDoc->GetElementById(nsDependentString(elementID), &rElement);
-	mDoc->Release();
+	nsCOMPtr<nsIDOMElement> rElement;
+	mDoc->GetElementById(nsDependentString(elementID), getter_AddRefs(rElement));
 	if(rElement == NULL)
 	{
 		*rval = JSVAL_FALSE;
@@ -564,9 +536,7 @@ JSBool getElementByID(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		return JS_TRUE;
 	}
 
-	nsIDOMNode * nNode;
-	rElement->QueryInterface(NS_GET_IID(nsIDOMNode), (void**)&nNode);
-	rElement->Release();
+	nsCOMPtr<nsIDOMNode> nNode = do_QueryInterface(rElement);
 
 	JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
 	*rval = OBJECT_TO_JSVAL(retObj);
@@ -576,16 +546,11 @@ JSBool getElementByID(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 
 JSBool docNodeGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 {
-	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsIDOMDocument * mDoc;
-	mNode->QueryInterface(NS_GET_IID(nsIDOMDocument), (void**)&mDoc);
-
-	nsIDOMElement * docElement;
-	mDoc->GetDocumentElement(&docElement);
-	nsIDOMNode * nNode;
-	docElement->QueryInterface(NS_GET_IID(nsIDOMNode), (void**)&nNode);
-	docElement->Release();
-	mDoc->Release();
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	nsCOMPtr<nsIDOMDocument> mDoc = do_QueryInterface(mNode);
+	nsCOMPtr<nsIDOMElement> docElement;
+	mDoc->GetDocumentElement(getter_AddRefs(docElement));
+	nsCOMPtr<nsIDOMNode> nNode = do_QueryInterface(docElement);
 
 	JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
 	*vp = OBJECT_TO_JSVAL(retObj);

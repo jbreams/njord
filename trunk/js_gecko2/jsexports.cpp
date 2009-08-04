@@ -96,8 +96,8 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 		Sleep(50);
 	}
 	
-	newPrivateData->mDOMListener = new DOMEventListener(newPrivateData);
-	newPrivateData->mDOMListener->AddRef();
+	newPrivateData->mDOMListener = NULL;
+	newPrivateData->nDOMListeners = 0;
 	ShowWindow(newPrivateData->mNativeWindow, SW_SHOW);
 	newPrivateData->nsIPO = do_GetService(NS_XPCOMPROXY_CONTRACTID, &rv);
 	nsCOMPtr<nsIWebBrowser> browser;
@@ -158,7 +158,12 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 		return JS_FALSE;
 	}
 	JS_EndRequest(cx);
-	mPrivate->mDOMListener->UnregisterAll();
+	DOMEventListener * curl = mPrivate->mDOMListener;
+	while(curl != NULL)
+	{
+		curl->active = FALSE;
+		curl = curl->next;
+	}
 
 	nsCOMPtr<nsIWebBrowser> mWebBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mWebBrowser));
@@ -179,26 +184,22 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 			*rval = JSVAL_FALSE;
 			return JS_TRUE;
 		}
-		nsIDOMNode * mNode;
-		mElement->QueryInterface(NS_GET_IID(nsIDOMNode), (void**)&mNode);
+		nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mElement);
 		mElement->Release();
 		document->Release();
+		DOMEventListener tempListener(mPrivate, NULL);
+		nsString actionString;
 		if(action == NULL)
-			action = TEXT("click");
-		if(!mPrivate->mDOMListener->RegisterEvent(mNode, action, NULL))
-		{
-			mNode->Release();
-			*rval = JSVAL_FALSE;
-			return JS_TRUE;
-		}
-		if(!mPrivate->mDOMListener->WaitForSingleEvent(mNode, action, INFINITE))
-		{
-			mNode->Release();
-			*rval = JSVAL_FALSE;
-		}
-	}
-	*rval = JSVAL_TRUE;
+			actionString.AssignLiteral("click");
+		else
+			actionString.Assign(action);
 
+		target->AddEventListener(actionString, &tempListener, PR_FALSE);
+		HANDLE waitHandle = tempListener.GetHandle();
+		*rval = WaitForSingleObject(waitHandle, INFINITE) == WAIT_OBJECT_0 ? JSVAL_TRUE : JSVAL_FALSE;
+		CloseHandle(waitHandle);
+		target->RemoveEventListener(actionString, &tempListener, PR_FALSE);
+	}
 	return JS_TRUE;
 }
 
@@ -207,7 +208,7 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	LPSTR uri;
 	LPWSTR target = NULL, eventName = NULL;
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "s /W W", &uri))
+	if(!JS_ConvertArguments(cx, argc, argv, "s /W W", &uri, &target, &eventName))
 	{
 		JS_ReportError(cx, "Error parsing arguments in g2_load_uri");
 		JS_EndRequest(cx);
@@ -216,7 +217,12 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	JS_EndRequest(cx);
 
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	mPrivate->mDOMListener->UnregisterAll();
+	DOMEventListener * curl = mPrivate->mDOMListener;
+	while(curl != NULL)
+	{
+		curl->active = FALSE;
+		curl = curl->next;
+	}
 	nsCOMPtr<nsIWebBrowser> mBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mBrowser));
 	nsCOMPtr<nsIWebNavigation> mWebNavigation = do_QueryInterface(mBrowser);
@@ -224,21 +230,30 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	*rval = result == NS_OK ? JSVAL_TRUE : JSVAL_FALSE;
 	if(target != NULL && eventName != NULL)
 	{
-		nsCOMPtr<nsIDOMDocument> doc;
-		mPrivate->mDOMWindow->GetDocument(getter_AddRefs(doc));
-		nsCOMPtr<nsIDOMElement> element;
-		if(doc->GetElementById(nsDependentString(target), getter_AddRefs(element)) == NS_OK)
+		nsIDOMDocument * document;
+		mPrivate->mDOMWindow->GetDocument(&document);
+		nsIDOMElement * mElement;
+		if(NS_FAILED(document->GetElementById(nsDependentString(target), &mElement)))
 		{
-			nsCOMPtr<nsIDOMNode> eventTarget = do_QueryInterface(element);
-			if(!mPrivate->mDOMListener->RegisterEvent(eventTarget.get(), eventName, NULL))
-			{
-				*rval = JSVAL_FALSE;
-				return JS_TRUE;
-			}
-			*rval = mPrivate->mDOMListener->WaitForSingleEvent(eventTarget.get(), eventName, INFINITE) ? JSVAL_TRUE : JSVAL_FALSE;
+			document->Release();
+			*rval = JSVAL_FALSE;
+			return JS_TRUE;
 		}
+		nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mElement);
+		mElement->Release();
+		document->Release();
+		DOMEventListener tempListener(mPrivate, NULL);
+		nsString actionString;
+		if(eventName == NULL)
+			actionString.AssignLiteral("click");
 		else
-			*rval = JSVAL_FALSE;		
+			actionString.Assign(eventName);
+
+		target->AddEventListener(actionString, &tempListener, PR_FALSE);
+		HANDLE waitHandle = tempListener.GetHandle();
+		*rval = WaitForSingleObject(waitHandle, INFINITE) == WAIT_OBJECT_0 ? JSVAL_TRUE : JSVAL_FALSE;
+		CloseHandle(waitHandle);
+		target->RemoveEventListener(actionString, &tempListener, PR_FALSE);	
 	}
 	return JS_TRUE;
 }
@@ -329,7 +344,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "Destroy", g2_destroy, 0, 0 },
 		{ "GetDOM", g2_get_dom, 0, 0 },
 		{ "RegisterEvent", g2_register_event, 3, 0 },
-		{ "UnregisterEvent", g2_unregister_event, 1, 0 },
+		{ "UnregisterEvents", g2_unregister_event, 1, 0 },
 		{ "WaitForStuff", g2_wait_for_stuff, 2, 0 },
 		{ "WaitForThings", g2_wait_for_things, 2, 0 },
 		{ "GetInput", g2_get_input_value, 1, 0 },
