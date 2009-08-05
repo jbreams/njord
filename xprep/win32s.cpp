@@ -259,6 +259,7 @@ JSBool win32_sleep(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	jsrefcount rCount = JS_SuspendRequest(cx);
 	Sleep(nTimeout);
 	JS_ResumeRequest(cx, rCount);
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
