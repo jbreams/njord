@@ -236,7 +236,7 @@ LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mBrowser);
 			baseWindow->SetPositionAndSize(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, PR_TRUE);
 		}
-
+		break;
     case WM_ACTIVATE:
 		if (mChrome) {
 			nsCOMPtr<nsIWebBrowserFocus> mFocus = do_QueryInterface(mBrowser);
@@ -279,7 +279,8 @@ LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		if(mChrome && mChrome->mDocumentLoaded)
 			return 1;
 	default:
-		return ::DefWindowProc(hWnd, message, wParam, lParam);
+		DWORD ret = ::DefWindowProc(hWnd, message, wParam, lParam);
+		return ret;
 	}
 	return 0;
 }
@@ -323,6 +324,7 @@ DWORD UiThread(LPVOID lpParam)
 				curView->mChrome = new WebBrowserChrome();
 				curView->mChrome->CreateBrowser(nWnd);
 				curView->mChrome->GetWebBrowser(getter_AddRefs(curView->mBrowser));
+				curView->mChrome->cx = curView->mContext;
 				SetWindowLongPtrW(nWnd, GWLP_USERDATA, (LONG_PTR)curView->mChrome);
 				curView->mDOMWindow = do_GetInterface(curView->mBrowser);
 
@@ -374,6 +376,7 @@ JSBool g2_init(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
+	jsrefcount rCount = JS_SuspendRequest(cx);
 	HANDLE threadHandle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)UiThread, pathToGRE, 0, NULL);
 	LONG stillWaiting = 1;
 	DWORD exitCode;
@@ -385,10 +388,12 @@ JSBool g2_init(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *
 		if(exitCode != STILL_ACTIVE)
 			break;
 	}
+	JS_ResumeRequest(cx, rCount);
 	if(exitCode != STILL_ACTIVE)
 		*rval = JSVAL_FALSE;
 	else
 		*rval = JSVAL_TRUE;
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 

@@ -86,6 +86,7 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	newPrivateData->requestedRect.left = x;
 	newPrivateData->requestedRect.bottom = y + cY;
 	newPrivateData->requestedRect.right = x + cX;
+	newPrivateData->mContext = cx;
 
 	BOOL inited = FALSE;
 	while(!inited)
@@ -107,6 +108,7 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	JSObject * retObj = JS_NewObject(cx, &GeckoViewClass, GeckoViewProto, obj);
 	*rval = OBJECT_TO_JSVAL(retObj);
 	JS_SetPrivate(cx, retObj, newPrivateData);
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -115,9 +117,9 @@ extern JSClass lDOMNodeClass;
 
 JSBool g2_get_element_by_id(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	LPWSTR idStr;
-	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "W", &idStr))
 	{
 		JS_ReportError(cx, "Error in argument processing in g2_get_element_by_id");
@@ -145,12 +147,12 @@ JSBool g2_get_element_by_id(JSContext * cx, JSObject * obj, uintN argc, jsval * 
 JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	nsresult rv;
+	JS_BeginRequest(cx);
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	LPWSTR baseUrl;
 	char * dataToLoad, *contentType = "text/html";
 	LPWSTR target = NULL, action = NULL;
 
-	JS_BeginRequest(cx);
 	if(!JS_ConvertArguments(cx, argc, argv, "s W/ W W s", &dataToLoad, &baseUrl, &target, &action, &contentType))
 	{
 		JS_ReportError(cx, "Error in argument processing in g2_load_data");
@@ -214,9 +216,9 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
-	JS_EndRequest(cx);
 
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
+	JS_EndRequest(cx);
 	DOMEventListener * curl = mPrivate->mDOMListener;
 	while(curl != NULL)
 	{
@@ -295,7 +297,6 @@ JSBool g2_import_dom_string(JSContext * cx, JSObject * obj, uintN argc, jsval * 
 JSBool g2_destroy(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	mPrivate->mDOMListener->Release();
 	EnterCriticalSection(&viewsLock);
 	mPrivate->destroying = TRUE;
 	LeaveCriticalSection(&viewsLock);
@@ -307,15 +308,13 @@ extern JSObject * lDOMDocProto;
 
 JSBool g2_get_dom(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 
-	nsIDOMDocument * mDocument;
-	mPrivate->mDOMWindow->GetDocument(&mDocument);
-	nsIDOMNode * mNode;
-	mDocument->QueryInterface(NS_GET_IID(nsIDOMNode), (void**)&mNode);
-	mDocument->Release();
+	nsCOMPtr<nsIDOMDocument> mDocument;
+	mPrivate->mDOMWindow->GetDocument(getter_AddRefs(mDocument));
+	nsCOMPtr<nsIDOMNode> mNode = do_QueryInterface(mDocument);
 
-	JS_BeginRequest(cx);
 	JSObject * retObj = JS_NewObject(cx, &lDOMDocClass, lDOMDocProto, obj);
 	*rval = OBJECT_TO_JSVAL(retObj);
 	JS_SetPrivate(cx, retObj, mNode);
@@ -325,7 +324,9 @@ JSBool g2_get_dom(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 
 JSBool g2_repaint(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
+	JS_EndRequest(cx);
 	nsCOMPtr<nsIWebBrowser> mBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mBrowser));
 	nsCOMPtr<nsIBaseWindow> mBaseWindow = do_QueryInterface(mBrowser);

@@ -47,6 +47,7 @@ public:
 	nsresult CreateBrowser(HWND nativeWnd);
 	PRBool		 mDocumentLoaded;
 	PRBool		 mAllowClose;
+	JSContext * cx;
 
 protected:
 

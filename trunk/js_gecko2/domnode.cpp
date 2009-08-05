@@ -177,7 +177,8 @@ JSBool stringPropGetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 	case TEXT_PROP:
 		{
 			nsCOMPtr<nsIDOM3Node> l3Node = do_QueryInterface(mNode);
-			l3Node->GetTextContent(value);
+			if(l3Node != NULL)
+				l3Node->GetTextContent(value);
 		}
 		break;
 	}
@@ -198,19 +199,21 @@ JSBool stringPropSetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 	JS_BeginRequest(cx);
 	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 	JSString * valStr = JS_ValueToString(cx, *vp);
+	*vp = STRING_TO_JSVAL(valStr);
 	jschar * valChars = JS_GetStringChars(valStr);
 
-	nsString value;
+	nsString value(valChars);
 	nsresult result;
 	switch(JSVAL_TO_INT(idval))
 	{
 	case VALUE_PROP:
-		result = mNode->SetNodeValue(nsDependentString(valChars));
+		result = mNode->SetNodeValue(value);
 		break;
 	case TEXT_PROP:
 		{
 			nsCOMPtr<nsIDOM3Node> l3Node = do_QueryInterface(mNode);
-			l3Node->SetTextContent(nsDependentString(valChars));
+			if(l3Node != NULL)
+				l3Node->SetTextContent(value);
 		}
 		break;
 	}
@@ -219,12 +222,52 @@ JSBool stringPropSetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 	return JS_TRUE;
 }
 
+JSBool setNodeTextContent(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JS_BeginRequest(cx);
+	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
+	if(argc == 0)
+	{
+		JS_EndRequest(cx);
+		return JS_TRUE;
+	}
+	JSString * contentStr = JS_ValueToString(cx, *argv);
+	*argv = STRING_TO_JSVAL(contentStr);
+
+	nsDependentString content(contentStr->chars, contentStr->length);
+	PRBool hasChildren = PR_FALSE;
+	mNode->HasChildNodes(&hasChildren);
+	if(hasChildren)
+	{
+		nsCOMPtr<nsIDOMNodeList> children;
+		mNode->GetChildNodes(getter_AddRefs(children));
+		PRUint32 nChildren;
+		children->GetLength(&nChildren);
+		for(PRUint32 i = 0; i < nChildren; i++)
+		{
+			nsCOMPtr<nsIDOMNode> curChild, oldChild;
+			if(NS_SUCCEEDED(children->Item(i, getter_AddRefs(curChild))))
+				mNode->RemoveChild(curChild, getter_AddRefs(oldChild));
+		}
+	}
+
+	nsCOMPtr<nsIDOMDocument> domDoc;
+	mNode->GetOwnerDocument(getter_AddRefs(domDoc));
+	nsCOMPtr<nsIDOMText> newText;
+	domDoc->CreateTextNode(content, getter_AddRefs(newText));
+	nsCOMPtr<nsIDOMNode> textNode = do_QueryInterface(newText);
+	nsCOMPtr<nsIDOMNode> oldNode;
+	mNode->AppendChild(textNode, getter_AddRefs(oldNode));
+	JS_EndRequest(cx);
+	return JS_TRUE;
+}
 
 JSBool getElementsByTagName(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	nsCOMPtr<nsIDOMElement> mElement = do_QueryInterface(mNode);
-	if(mElement == NULL)
+	nsresult rv;
+	nsCOMPtr<nsIDOMElement> mElement = do_QueryInterface(mNode, &rv);
+	if(NS_FAILED(rv))
 	{
 		*rval = JSVAL_FALSE;
 		return JS_TRUE;
@@ -569,6 +612,7 @@ JSBool initDOMNode(JSContext * cx, JSObject * global)
 		{ "ReplaceChild", replaceChild, 2, 0 },
 		{ "RemoveChild", removeChild, 1, 0 },
 		{ "AppendChild", appendChild, 1, 0 },
+		{ "SetTextContent", setNodeTextContent, 1, 0 },
 		{ 0 }
 	};
 
@@ -584,7 +628,8 @@ JSBool initDOMNode(JSContext * cx, JSObject * global)
 		{ "previousSibling", PREVIOUSSIBLING_PROP, readOnlyProp, nodePropGetter, NULL },
 		{ "nextSibling", NEXTSIBLING_PROP, readOnlyProp, nodePropGetter, NULL },
 		{ "children", CHILDREN_PROP, readOnlyProp, childGetter, NULL },
-		{ "text", TEXT_PROP, JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_SHARED, stringPropGetter, stringPropSetter },
+		{ "text", TEXT_PROP, JSPROP_ENUMERATE | JSPROP_PERMANENT, stringPropGetter, stringPropSetter },
+		{ "textContent", 0, JSPROP_PERMANENT, NULL, NULL },
 		{ 0 }
 	};
 
