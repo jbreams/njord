@@ -284,6 +284,8 @@ LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	}
 	return 0;
 }
+extern CRITICAL_SECTION domStateLock;
+extern BYTE domState;
 
 DWORD UiThread(LPVOID lpParam)
 {
@@ -300,13 +302,14 @@ DWORD UiThread(LPVOID lpParam)
 	wc.lpszMenuName = NULL;
 	wc.lpszClassName = TEXT("NJORD_GECKOEMBED_2");
 	RegisterClass(&wc);
-	nsresult rv;
 
 	int initCode = InitGRE(lpParam);
 	if(initCode != 0)
 		return initCode;
 
 	InitializeCriticalSection(&viewsLock);
+	InitializeCriticalSection(&domStateLock);
+	domState = 0;
 
 	InterlockedIncrement(&ThreadInitialized);
 	while(keepUIGoing)
@@ -317,7 +320,7 @@ DWORD UiThread(LPVOID lpParam)
 		{
 			if(curView->initialized == FALSE)
 			{
-				HWND nWnd = CreateWindowW(TEXT("NJORD_GECKOEMBED_2"), TEXT("Gecko"), WS_OVERLAPPEDWINDOW, curView->requestedRect.left, curView->requestedRect.top,
+				HWND nWnd = CreateWindowW(TEXT("NJORD_GECKOEMBED_2"), TEXT("Gecko"), curView->windowStyle, curView->requestedRect.left, curView->requestedRect.top,
 					curView->requestedRect.right - curView->requestedRect.left, curView->requestedRect.bottom - curView->requestedRect.top, NULL, NULL,
 					GetModuleHandle(NULL), NULL);
 				curView->mNativeWindow = nWnd;
@@ -345,6 +348,7 @@ DWORD UiThread(LPVOID lpParam)
 		LeaveCriticalSection(&viewsLock);
 
 		MSG msg;
+		EnterCriticalSection(&domStateLock);
 		if(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
@@ -352,6 +356,7 @@ DWORD UiThread(LPVOID lpParam)
 		}
 		else
 			Sleep(10);
+		LeaveCriticalSection(&domStateLock);
 	}
 
 	NS_LogInit();
@@ -406,7 +411,5 @@ JSBool g2_term(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *
 		Sleep(250);
 		InterlockedCompareExchange(&stopped, 1, ThreadInitialized);
 	}
-
-    nsresult rv;
     return JS_TRUE;
 }

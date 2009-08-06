@@ -40,6 +40,8 @@
 #include "privatedata.h"
 
 enum { NAME_PROP, TAGNAME_PROP, VALUE_PROP, PARENTNODE_PROP, FIRSTCHILD_PROP, LASTCHILD_PROP, PREVIOUSSIBLING_PROP, NEXTSIBLING_PROP, CHILDREN_PROP, TEXT_PROP };
+BYTE domState;
+CRITICAL_SECTION domStateLock;
 
 JSObject * lDOMNodeProto;
 void finalizeElement(JSContext * cx, JSObject * obj)
@@ -99,7 +101,10 @@ JSBool setAttribute(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	JS_EndRequest(cx);
 
 	nsDependentString aName(name), aValue(value);
+	EnterCriticalSection(&domStateLock);
+	domState = 1;
 	mElement->SetAttribute(aName, aValue);
+	LeaveCriticalSection(&domStateLock);
 	return JS_TRUE;
 }
 
@@ -124,7 +129,10 @@ JSBool removeAttribute(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 	JS_EndRequest(cx);
 
 	nsDependentString aName(name);
+	EnterCriticalSection(&domStateLock);
 	mElement->RemoveAttribute(aName);
+	domState = 1;
+	LeaveCriticalSection(&domStateLock);
 	return JS_TRUE;
 }
 
@@ -204,6 +212,8 @@ JSBool stringPropSetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 
 	nsString value(valChars);
 	nsresult result;
+	EnterCriticalSection(&domStateLock);
+	domState = 1;
 	switch(JSVAL_TO_INT(idval))
 	{
 	case VALUE_PROP:
@@ -217,48 +227,9 @@ JSBool stringPropSetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 		}
 		break;
 	}
+	LeaveCriticalSection(&domStateLock);
 	JS_EndRequest(cx);
 
-	return JS_TRUE;
-}
-
-JSBool setNodeTextContent(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
-{
-	JS_BeginRequest(cx);
-	nsCOMPtr<nsIDOMNode> mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-	if(argc == 0)
-	{
-		JS_EndRequest(cx);
-		return JS_TRUE;
-	}
-	JSString * contentStr = JS_ValueToString(cx, *argv);
-	*argv = STRING_TO_JSVAL(contentStr);
-
-	nsDependentString content(contentStr->chars, contentStr->length);
-	PRBool hasChildren = PR_FALSE;
-	mNode->HasChildNodes(&hasChildren);
-	if(hasChildren)
-	{
-		nsCOMPtr<nsIDOMNodeList> children;
-		mNode->GetChildNodes(getter_AddRefs(children));
-		PRUint32 nChildren;
-		children->GetLength(&nChildren);
-		for(PRUint32 i = 0; i < nChildren; i++)
-		{
-			nsCOMPtr<nsIDOMNode> curChild, oldChild;
-			if(NS_SUCCEEDED(children->Item(i, getter_AddRefs(curChild))))
-				mNode->RemoveChild(curChild, getter_AddRefs(oldChild));
-		}
-	}
-
-	nsCOMPtr<nsIDOMDocument> domDoc;
-	mNode->GetOwnerDocument(getter_AddRefs(domDoc));
-	nsCOMPtr<nsIDOMText> newText;
-	domDoc->CreateTextNode(content, getter_AddRefs(newText));
-	nsCOMPtr<nsIDOMNode> textNode = do_QueryInterface(newText);
-	nsCOMPtr<nsIDOMNode> oldNode;
-	mNode->AppendChild(textNode, getter_AddRefs(oldNode));
-	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -362,6 +333,8 @@ JSBool insertBefore(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	refChild = (nsIDOMNode*)JS_GetPrivate(cx, refChildObj);
 	mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 
+	EnterCriticalSection(&domStateLock);
+	domState = 1;
 	if(mNode->InsertBefore(newChild, refChild, getter_AddRefs(outNode)) == NS_OK)
 	{
 		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
@@ -370,6 +343,7 @@ JSBool insertBefore(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	}
 	else
 		*rval = JSVAL_FALSE;
+	LeaveCriticalSection(&domStateLock);
 	JS_EndRequest(cx);
 	return JS_TRUE;
 }
@@ -395,7 +369,9 @@ JSBool replaceChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	newChild = (nsIDOMNode*)JS_GetPrivate(cx, newChildObj);
 	refChild = (nsIDOMNode*)JS_GetPrivate(cx, refChildObj);
 	mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
-
+	
+	EnterCriticalSection(&domStateLock);
+	domState = 1;
 	if(mNode->ReplaceChild(newChild, refChild, getter_AddRefs(outNode)) == NS_OK)
 	{
 		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
@@ -404,6 +380,7 @@ JSBool replaceChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	}
 	else
 		*rval = JSVAL_FALSE;
+	LeaveCriticalSection(&domStateLock);
 	JS_EndRequest(cx);
 	return JS_TRUE;
 }
@@ -430,6 +407,8 @@ JSBool removeChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	refChild = (nsIDOMNode*)JS_GetPrivate(cx, refChildObj);
 	mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 
+	EnterCriticalSection(&domStateLock);
+	domState = 1;
 	if(mNode->RemoveChild(refChild, getter_AddRefs(outNode)) == NS_OK)
 	{
 		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
@@ -438,6 +417,7 @@ JSBool removeChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	}
 	else
 		*rval = JSVAL_FALSE;
+	LeaveCriticalSection(&domStateLock);
 	JS_EndRequest(cx);
 	return JS_TRUE;
 }
@@ -464,6 +444,8 @@ JSBool appendChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	refChild = (nsIDOMNode*)JS_GetPrivate(cx, refChildObj);
 	mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 
+	EnterCriticalSection(&domStateLock);
+	domState = 1;
 	if(mNode->AppendChild(refChild, getter_AddRefs(outNode)) == NS_OK)
 	{
 		JSObject * retObj = JS_NewObject(cx, &lDOMNodeClass, lDOMNodeProto, obj);
@@ -472,6 +454,7 @@ JSBool appendChild(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	}
 	else
 		*rval = JSVAL_FALSE;
+	LeaveCriticalSection(&domStateLock);
 	JS_EndRequest(cx);
 	return JS_TRUE;
 }
@@ -612,7 +595,6 @@ JSBool initDOMNode(JSContext * cx, JSObject * global)
 		{ "ReplaceChild", replaceChild, 2, 0 },
 		{ "RemoveChild", removeChild, 1, 0 },
 		{ "AppendChild", appendChild, 1, 0 },
-		{ "SetTextContent", setNodeTextContent, 1, 0 },
 		{ 0 }
 	};
 

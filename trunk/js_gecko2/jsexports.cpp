@@ -64,16 +64,13 @@ JSObject * GeckoViewProto;
 JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	PrivateData * newPrivateData = new PrivateData();
+	newPrivateData->windowStyle = WS_OVERLAPPEDWINDOW;
 
 	JS_BeginRequest(cx);
-	WORD cX, cY;
+	WORD cX = 800, cY = 600;
 	nsresult rv;
 
-	if(!JS_ConvertArguments(cx, argc, argv, "c c /b", &cX, &cY, &newPrivateData->allowClose))
-	{
-		cX = 800;
-		cY = 600;
-	}
+	JS_ConvertArguments(cx, argc, argv, "c c /b u", &cX, &cY, &newPrivateData->allowClose, &newPrivateData->windowStyle);
 
 	EnterCriticalSection(&viewsLock);
 	newPrivateData->next = viewsHead;
