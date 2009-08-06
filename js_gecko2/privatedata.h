@@ -43,6 +43,7 @@ public:
 	BOOL allowClose;
 	BOOL destroying;
 	HWND mNativeWindow;
+	DWORD windowStyle;
 	nsCOMPtr<nsIWebBrowser> mBrowser;
 	nsCOMPtr<nsIDOMWindow> mDOMWindow;
 	nsCOMPtr<nsIProxyObjectManager> nsIPO;
