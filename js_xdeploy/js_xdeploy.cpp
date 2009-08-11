@@ -54,11 +54,11 @@ IWbemLocator * pLoc = NULL;
 
 JSBool setcomputername(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	JSString * newName;
+	LPWSTR newName;
 	COMPUTER_NAME_FORMAT nameType = ComputerNamePhysicalNetBIOS;
 
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "S /u", &newName, (DWORD*)&nameType))
+	if(!JS_ConvertArguments(cx, argc, argv, "W /u", &newName, (DWORD*)&nameType))
 	{
 		JS_ReportError(cx, "Unable to parse arguments in setcomputername.");
 		JS_EndRequest(cx);
@@ -66,7 +66,7 @@ JSBool setcomputername(JSContext * cx, JSObject * obj, uintN argc, jsval * argv,
 	}
 	JS_EndRequest(cx);
 
-	*rval = SetComputerNameEx(nameType, (LPWSTR)JS_GetStringChars(newName)) != 0 ? JSVAL_TRUE : JSVAL_FALSE;
+	*rval = SetComputerNameEx(nameType, newName) != 0 ? JSVAL_TRUE : JSVAL_FALSE;
 	return JS_TRUE;
 }
 

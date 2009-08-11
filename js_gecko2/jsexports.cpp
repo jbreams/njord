@@ -49,6 +49,7 @@
 
 extern BOOL keepUIGoing;
 extern CRITICAL_SECTION viewsLock;
+extern CRITICAL_SECTION domStateLock;
 extern PrivateData * viewsHead;
 DWORD nViews = 0;
 
@@ -146,9 +147,8 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	nsresult rv;
 	JS_BeginRequest(cx);
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	LPWSTR baseUrl;
 	char * dataToLoad, *contentType = "text/html";
-	LPWSTR target = NULL, action = NULL;
+	LPWSTR target = NULL, action = NULL, baseUrl;
 
 	if(!JS_ConvertArguments(cx, argc, argv, "s W/ W W s", &dataToLoad, &baseUrl, &target, &action, &contentType))
 	{
@@ -186,18 +186,19 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 		nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mElement);
 		mElement->Release();
 		document->Release();
-		DOMEventListener tempListener(mPrivate, NULL);
+		DOMEventListener * tempListener = new DOMEventListener(mPrivate, NULL);
 		nsString actionString;
 		if(action == NULL)
 			actionString.AssignLiteral("click");
 		else
 			actionString.Assign(action);
 
-		target->AddEventListener(actionString, &tempListener, PR_FALSE);
-		HANDLE waitHandle = tempListener.GetHandle();
+		target->AddEventListener(actionString, tempListener, PR_FALSE);
+		HANDLE waitHandle = tempListener->GetHandle();
 		*rval = WaitForSingleObject(waitHandle, INFINITE) == WAIT_OBJECT_0 ? JSVAL_TRUE : JSVAL_FALSE;
 		CloseHandle(waitHandle);
-		target->RemoveEventListener(actionString, &tempListener, PR_FALSE);
+		target->RemoveEventListener(actionString, tempListener, PR_FALSE);
+		delete tempListener;
 	}
 	return JS_TRUE;
 }
@@ -327,7 +328,9 @@ JSBool g2_repaint(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 	nsCOMPtr<nsIWebBrowser> mBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mBrowser));
 	nsCOMPtr<nsIBaseWindow> mBaseWindow = do_QueryInterface(mBrowser);
+	EnterCriticalSection(&domStateLock);
 	mBaseWindow->Repaint(PR_TRUE);
+	LeaveCriticalSection(&domStateLock);
 	return JS_TRUE;
 }
 

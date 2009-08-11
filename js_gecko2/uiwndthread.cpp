@@ -348,15 +348,15 @@ DWORD UiThread(LPVOID lpParam)
 		LeaveCriticalSection(&viewsLock);
 
 		MSG msg;
-		EnterCriticalSection(&domStateLock);
 		if(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
+			EnterCriticalSection(&domStateLock);
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
+			LeaveCriticalSection(&domStateLock);
 		}
 		else
 			Sleep(10);
-		LeaveCriticalSection(&domStateLock);
 	}
 
 	NS_LogInit();
