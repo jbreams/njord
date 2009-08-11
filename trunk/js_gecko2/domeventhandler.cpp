@@ -48,6 +48,7 @@ DOMEventListener::DOMEventListener(PrivateData * owner, LPSTR callback)
 	this->myHandle = CreateEvent(NULL, TRUE, FALSE, NULL);
 	this->aOwner = owner;
 	this->active = TRUE;
+	this->next = NULL;
 }
 
 DOMEventListener::~DOMEventListener()

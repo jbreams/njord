@@ -26,6 +26,8 @@
 #include "nsMemory.h"
 #include "nsIWidget.h"
 
+extern CRITICAL_SECTION domNodeLock;
+
 WebBrowserChrome::WebBrowserChrome()
 {
 	mNativeWindow = NULL;

@@ -152,6 +152,7 @@ JSBool file_get_contents(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	LARGE_INTEGER fileSize;
 	GetFileSizeEx(fileToRead, &fileSize);
 	LPBYTE buffer = (LPBYTE)JS_malloc(cx, fileSize.LowPart + sizeof(jschar));
+	memset(buffer, 0, fileSize.LowPart + sizeof(jschar));
 	if(buffer == NULL)
 	{
 		SetLastError(ERROR_OUTOFMEMORY);
