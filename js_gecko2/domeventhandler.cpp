@@ -39,6 +39,7 @@
 
 extern JSClass lDOMNodeClass;
 extern JSObject * lDOMNodeProto;
+extern CRITICAL_SECTION domStateLock;
 
 DOMEventListener::DOMEventListener(PrivateData * owner, LPSTR callback)
 {
@@ -53,7 +54,8 @@ DOMEventListener::DOMEventListener(PrivateData * owner, LPSTR callback)
 
 DOMEventListener::~DOMEventListener()
 {
-	free(callBack);
+	if(callBack != NULL)
+		free(callBack);
 	CloseHandle(myHandle);
 }
 
@@ -106,10 +108,13 @@ JSBool g2_register_event(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, target);
 	DOMEventListener * newListener = new DOMEventListener(mPrivate, callback);
+	newListener->AddRef();
 	
 	nsCOMPtr<nsIDOMEventTarget> realTarget = do_QueryInterface(mNode);
 	nsDependentString typeString(domEvent);
+	EnterCriticalSection(&domStateLock);
 	nsresult rv = realTarget->AddEventListener(typeString, newListener, PR_FALSE);
+	LeaveCriticalSection(&domStateLock);
 	if(NS_SUCCEEDED(rv))
 	{
 		newListener->next = mPrivate->mDOMListener;
@@ -119,7 +124,7 @@ JSBool g2_register_event(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	}
 	else
 	{
-		delete newListener;
+		newListener->Release();
 		*rval = JSVAL_FALSE;
 	}
 	return JS_TRUE;
@@ -141,20 +146,27 @@ JSBool g2_wait_for_stuff(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	nsIDOMNode * node = (nsIDOMNode*)JS_GetPrivate(cx, nodeObj);
-	DOMEventListener newListener(mPrivate, NULL);
+	DOMEventListener * newListener = new DOMEventListener(mPrivate, NULL);
+	newListener->AddRef();
 	
 	nsCOMPtr<nsIDOMEventTarget> realTarget = do_QueryInterface(node);
 	nsDependentString typeString(domEvent);
-	if(!NS_SUCCEEDED(realTarget->AddEventListener(typeString, &newListener, PR_FALSE)))
+	EnterCriticalSection(&domStateLock);
+	if(NS_FAILED(realTarget->AddEventListener(typeString, newListener, PR_FALSE)))
 	{
+		LeaveCriticalSection(&domStateLock);
 		*rval = JSVAL_FALSE;
 		return JS_TRUE;
 	}
+	LeaveCriticalSection(&domStateLock);
 	
-	HANDLE waitHandle = newListener.GetHandle();
+	HANDLE waitHandle = newListener->GetHandle();
 	DWORD waitResult = WaitForSingleObject(waitHandle, timeOut);
-	realTarget->RemoveEventListener(typeString, &newListener, PR_FALSE);
+	EnterCriticalSection(&domStateLock);
+	realTarget->RemoveEventListener(typeString, newListener, PR_FALSE);
+	LeaveCriticalSection(&domStateLock);
 	CloseHandle(waitHandle);
+	newListener->Release();
 	*rval = JSVAL_FALSE;
 	if(waitResult == WAIT_OBJECT_0)
 		*rval = JSVAL_TRUE;
@@ -211,10 +223,12 @@ JSBool g2_unregister_event(JSContext * cx, JSObject * obj, uintN argc, jsval * a
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	
 	DOMEventListener * curl = mPrivate->mDOMListener;
+	mPrivate->mDOMListener = NULL;
 	while(curl != NULL)
 	{
-		curl->active = FALSE;
-		curl = curl->next;
+		DOMEventListener * next = curl->next;
+		curl->Release();
+		curl = next;
 	}
 	return JS_TRUE;
 }

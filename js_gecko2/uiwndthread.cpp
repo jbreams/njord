@@ -312,6 +312,7 @@ DWORD UiThread(LPVOID lpParam)
 	domState = 0;
 
 	InterlockedIncrement(&ThreadInitialized);
+	SetTimer(NULL, 1, 1000, NULL);
 	while(keepUIGoing)
 	{
 		EnterCriticalSection(&viewsLock);
@@ -348,17 +349,15 @@ DWORD UiThread(LPVOID lpParam)
 		LeaveCriticalSection(&viewsLock);
 
 		MSG msg;
-		if(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		if(GetMessage(&msg, NULL, 0, 0))
 		{
 			EnterCriticalSection(&domStateLock);
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 			LeaveCriticalSection(&domStateLock);
 		}
-		else
-			Sleep(10);
 	}
-
+	KillTimer(NULL, 1);
 	NS_LogInit();
 	XRE_TermEmbedding();
 	NS_IF_RELEASE(sProfileLock);

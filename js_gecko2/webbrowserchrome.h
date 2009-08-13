@@ -45,7 +45,7 @@ public:
     NS_DECL_NSIINTERFACEREQUESTOR
 
 	nsresult CreateBrowser(HWND nativeWnd);
-	PRBool		 mDocumentLoaded;
+	HANDLE		mDocumentLoaded;
 	PRBool		 mAllowClose;
 	JSContext * cx;
 
