@@ -174,12 +174,13 @@ JSBool file_get_contents(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 
 	JSString * retString = NULL;
 	if(IsTextUnicode((LPVOID)buffer, actualCount, NULL))
-		retString = JS_NewUCString(cx, (jschar*)buffer, actualCount);
+		retString = JS_NewUCString(cx, (jschar*)buffer, actualCount / sizeof(jschar));
 	else
 		retString = JS_NewString(cx, (char*)buffer, actualCount);
 	if(retString == NULL)
 	{
 		JS_ReportOutOfMemory(cx);
+		JS_free(cx, buffer);
 		*rval = JSVAL_FALSE;
 	}
 	else

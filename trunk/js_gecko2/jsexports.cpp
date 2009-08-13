@@ -168,37 +168,48 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mWebBrowser));
 	nsCOMPtr<nsIWebBrowserStream> wbStream = do_QueryInterface(mWebBrowser);
 	nsCOMPtr<nsIURI> uri;
-	rv = NS_NewURI(getter_AddRefs(uri), nsString(baseUrl));
+	rv = NS_NewURI(getter_AddRefs(uri), nsDependentString(baseUrl));
+
 	wbStream->OpenStream(uri, nsDependentCString(contentType));
 	wbStream->AppendToStream((PRUint8*)dataToLoad, strlen(dataToLoad));
 	wbStream->CloseStream();
+	mPrivate->mDOMWindow = do_GetInterface(mWebBrowser);
 	if(target != NULL && !JSVAL_IS_NULL(argv[2]))
 	{
-		nsIDOMDocument * document;
-		mPrivate->mDOMWindow->GetDocument(&document);
-		nsIDOMElement * mElement;
-		if(NS_FAILED(document->GetElementById(nsDependentString(target), &mElement)))
+		nsCOMPtr<nsIDOMDocument> document;
+		nsCOMPtr<nsIDOMElement> mElement;
+		if(NS_FAILED(mPrivate->mDOMWindow->GetDocument(getter_AddRefs(document))))
 		{
-			document->Release();
 			*rval = JSVAL_FALSE;
 			return JS_TRUE;
 		}
-		nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mElement);
-		mElement->Release();
-		document->Release();
+		if(NS_FAILED(document->GetElementById(nsDependentString(target), getter_AddRefs(mElement))))
+		{
+			*rval = JSVAL_FALSE;
+			return JS_TRUE;
+		}
+		nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mElement, &rv);
+		if(NS_FAILED(rv))
+		{
+			*rval = JSVAL_FALSE;
+			return JS_TRUE;
+		}
 		DOMEventListener * tempListener = new DOMEventListener(mPrivate, NULL);
+		tempListener->AddRef();
 		nsString actionString;
 		if(action == NULL)
 			actionString.AssignLiteral("click");
 		else
 			actionString.Assign(action);
 
+		EnterCriticalSection(&domStateLock);
 		target->AddEventListener(actionString, tempListener, PR_FALSE);
+		LeaveCriticalSection(&domStateLock);
 		HANDLE waitHandle = tempListener->GetHandle();
 		*rval = WaitForSingleObject(waitHandle, INFINITE) == WAIT_OBJECT_0 ? JSVAL_TRUE : JSVAL_FALSE;
 		CloseHandle(waitHandle);
 		target->RemoveEventListener(actionString, tempListener, PR_FALSE);
-		delete tempListener;
+		tempListener->Release();
 	}
 	return JS_TRUE;
 }
@@ -228,32 +239,41 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	nsCOMPtr<nsIWebNavigation> mWebNavigation = do_QueryInterface(mBrowser);
 	nsresult result = mWebNavigation->LoadURI(NS_ConvertUTF8toUTF16(uri).get(), nsIWebNavigation::LOAD_FLAGS_NONE, NULL, NULL, NULL);
 	*rval = result == NS_OK ? JSVAL_TRUE : JSVAL_FALSE;
-	if(target != NULL && eventName != NULL)
+	if(target != NULL)
 	{
-		nsIDOMDocument * document;
-		mPrivate->mDOMWindow->GetDocument(&document);
-		nsIDOMElement * mElement;
-		if(NS_FAILED(document->GetElementById(nsDependentString(target), &mElement)))
+		nsresult rv;
+		nsCOMPtr<nsIDOMDocument> document;
+		nsCOMPtr<nsIDOMElement> mElement;
+		if(NS_FAILED(mPrivate->mDOMWindow->GetDocument(getter_AddRefs(document))))
 		{
-			document->Release();
 			*rval = JSVAL_FALSE;
 			return JS_TRUE;
 		}
-		nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mElement);
-		mElement->Release();
-		document->Release();
-		DOMEventListener tempListener(mPrivate, NULL);
+		if(NS_FAILED(document->GetElementById(nsDependentString(target), getter_AddRefs(mElement))))
+		{
+			*rval = JSVAL_FALSE;
+			return JS_TRUE;
+		}
+		nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mElement, &rv);
+		if(NS_FAILED(rv))
+		{
+			*rval = JSVAL_FALSE;
+			return JS_TRUE;
+		}
+		DOMEventListener * tempListener = new DOMEventListener(mPrivate, NULL);
+		tempListener->AddRef();
 		nsString actionString;
 		if(eventName == NULL)
 			actionString.AssignLiteral("click");
 		else
 			actionString.Assign(eventName);
 
-		target->AddEventListener(actionString, &tempListener, PR_FALSE);
-		HANDLE waitHandle = tempListener.GetHandle();
+		target->AddEventListener(actionString, tempListener, PR_FALSE);
+		HANDLE waitHandle = tempListener->GetHandle();
 		*rval = WaitForSingleObject(waitHandle, INFINITE) == WAIT_OBJECT_0 ? JSVAL_TRUE : JSVAL_FALSE;
 		CloseHandle(waitHandle);
-		target->RemoveEventListener(actionString, &tempListener, PR_FALSE);	
+		target->RemoveEventListener(actionString, tempListener, PR_FALSE);
+		tempListener->Release();
 	}
 	return JS_TRUE;
 }
@@ -368,6 +388,11 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 	initDOMNode(cx, global);
 	JS_EndRequest(cx);
 
+	return TRUE;
+}
+
+BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
+{
 	return TRUE;
 }
 #ifdef __cplusplus

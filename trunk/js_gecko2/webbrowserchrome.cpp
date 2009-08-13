@@ -36,11 +36,12 @@ WebBrowserChrome::WebBrowserChrome()
 	mContinueModalLoop = PR_FALSE;
 	mCurrentLocation = NULL;
 	mChromeFlags = 0;
+	mDocumentLoaded = CreateEvent(NULL, TRUE, FALSE, NULL);
 }
 	
 WebBrowserChrome::~WebBrowserChrome()
 {
-
+	CloseHandle(mDocumentLoaded);
 }
 
 NS_IMPL_ISUPPORTS6(WebBrowserChrome,
@@ -199,7 +200,7 @@ NS_IMETHODIMP WebBrowserChrome::OnStateChange(nsIWebProgress * /*aWebProgress*/,
             SetVisibility(PR_TRUE);
         }
 
-		mDocumentLoaded = PR_TRUE;
+		SetEvent(mDocumentLoaded);
     }
 
     return NS_OK;

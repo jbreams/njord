@@ -207,10 +207,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\embeddingsetup.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\inputvalue.cpp"
 				>
 			</File>
