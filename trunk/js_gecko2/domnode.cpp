@@ -48,7 +48,11 @@ void finalizeElement(JSContext * cx, JSObject * obj)
 {
 	nsIDOMNode * mNode = (nsIDOMNode*)JS_GetPrivate(cx, obj);
 	if(mNode != NULL)
+	{
+		EnterCriticalSection(&domStateLock);
 		mNode->Release();
+		LeaveCriticalSection(&domStateLock);
+	}
 }
 
 JSClass lDOMNodeClass  = {
@@ -221,8 +225,8 @@ JSBool stringPropSetter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 		break;
 	case TEXT_PROP:
 		{
-			nsCOMPtr<nsIDOM3Node> l3Node = do_QueryInterface(mNode);
-			if(l3Node != NULL)
+			nsCOMPtr<nsIDOM3Node> l3Node = do_QueryInterface(mNode, &result);
+			if(NS_SUCCEEDED(result))
 				l3Node->SetTextContent(value);
 		}
 		break;

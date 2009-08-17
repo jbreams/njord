@@ -68,18 +68,21 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	newPrivateData->windowStyle = WS_OVERLAPPEDWINDOW;
 
 	JS_BeginRequest(cx);
-	WORD cX = 800, cY = 600;
+	WORD cX = 800, cY = 600, x = 0xffff, y = 0xffff;
 	nsresult rv;
 
-	JS_ConvertArguments(cx, argc, argv, "c c /b u", &cX, &cY, &newPrivateData->allowClose, &newPrivateData->windowStyle);
+	JS_ConvertArguments(cx, argc, argv, "c c /b u c c", &cX, &cY, &newPrivateData->allowClose, &newPrivateData->windowStyle, &x, &y);
 
 	EnterCriticalSection(&viewsLock);
 	newPrivateData->next = viewsHead;
 	viewsHead = newPrivateData;
 	LeaveCriticalSection(&viewsLock);
 
-	WORD x = (GetSystemMetrics(SM_CXSCREEN) - cX) / 2;
-	WORD y = (GetSystemMetrics(SM_CYSCREEN) - cY) / 2;
+	if(x == 0xffff && y == 0xffff)
+	{
+		x = (GetSystemMetrics(SM_CXSCREEN) - cX) / 2;
+		y = (GetSystemMetrics(SM_CYSCREEN) - cY) / 2;
+	}
 	newPrivateData->requestedRect.top = y;
 	newPrivateData->requestedRect.left = x;
 	newPrivateData->requestedRect.bottom = y + cY;
@@ -158,11 +161,15 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	}
 	JS_EndRequest(cx);
 	DOMEventListener * curl = mPrivate->mDOMListener;
+	mPrivate->mDOMListener = NULL;
+	EnterCriticalSection(&domStateLock);
 	while(curl != NULL)
 	{
-		curl->active = FALSE;
+		DOMEventListener * next = curl->next;
+		curl->Release();
 		curl = curl->next;
 	}
+	LeaveCriticalSection(&domStateLock);
 
 	nsCOMPtr<nsIWebBrowser> mWebBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mWebBrowser));
@@ -208,7 +215,9 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 		HANDLE waitHandle = tempListener->GetHandle();
 		*rval = WaitForSingleObject(waitHandle, INFINITE) == WAIT_OBJECT_0 ? JSVAL_TRUE : JSVAL_FALSE;
 		CloseHandle(waitHandle);
+		EnterCriticalSection(&domStateLock);
 		target->RemoveEventListener(actionString, tempListener, PR_FALSE);
+		LeaveCriticalSection(&domStateLock);
 		tempListener->Release();
 	}
 	return JS_TRUE;
@@ -229,11 +238,15 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 	JS_EndRequest(cx);
 	DOMEventListener * curl = mPrivate->mDOMListener;
+	mPrivate->mDOMListener = NULL;
+	EnterCriticalSection(&domStateLock);
 	while(curl != NULL)
 	{
-		curl->active = FALSE;
+		DOMEventListener * next = curl->next;
+		curl->Release();
 		curl = curl->next;
 	}
+	LeaveCriticalSection(&domStateLock);
 	nsCOMPtr<nsIWebBrowser> mBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mBrowser));
 	nsCOMPtr<nsIWebNavigation> mWebNavigation = do_QueryInterface(mBrowser);
@@ -268,11 +281,15 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 		else
 			actionString.Assign(eventName);
 
+		EnterCriticalSection(&domStateLock);
 		target->AddEventListener(actionString, tempListener, PR_FALSE);
+		LeaveCriticalSection(&domStateLock);
 		HANDLE waitHandle = tempListener->GetHandle();
 		*rval = WaitForSingleObject(waitHandle, INFINITE) == WAIT_OBJECT_0 ? JSVAL_TRUE : JSVAL_FALSE;
 		CloseHandle(waitHandle);
+		EnterCriticalSection(&domStateLock);
 		target->RemoveEventListener(actionString, tempListener, PR_FALSE);
+		LeaveCriticalSection(&domStateLock);
 		tempListener->Release();
 	}
 	return JS_TRUE;
@@ -354,6 +371,56 @@ JSBool g2_repaint(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 	return JS_TRUE;
 }
 
+JSContext * monitorEnumContext;
+JSObject * BuildRectObject(JSContext * cx, JSObject * parent, LPRECT rectToBuild)
+{
+	JSObject * rectObj = JS_NewObject(cx, NULL, NULL, parent);
+	jsval val;
+	JS_NewNumberValue(cx, rectToBuild->top, &val);
+	JS_DefineProperty(cx, rectObj, "top", val, NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+	JS_NewNumberValue(cx, rectToBuild->left, &val);
+	JS_DefineProperty(cx, rectObj, "left", val, NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+	JS_NewNumberValue(cx, rectToBuild->right, &val);
+	JS_DefineProperty(cx, rectObj, "right", val, NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+	JS_NewNumberValue(cx, rectToBuild->bottom, &val);
+	JS_DefineProperty(cx, rectObj, "bottom", val, NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+	return rectObj;
+}
+
+BOOL CALLBACK MonitorEnumProc(HMONITOR hMon, HDC a, LPRECT rectForMonitor, LPARAM dwData)
+{
+	JSObject * arrayObj = JSVAL_TO_OBJECT((jsval)dwData);
+	JSContext * cx = monitorEnumContext;
+	MONITORINFO mi;
+	mi.cbSize = sizeof(MONITORINFO);
+	GetMonitorInfo(hMon, &mi);
+	jsuint arrayLength;
+	JS_GetArrayLength(cx, arrayObj, &arrayLength);
+	JSObject * newMonitor = JS_NewObject(cx, NULL, NULL, NULL);
+	JS_DefineElement(cx, arrayObj, arrayLength, OBJECT_TO_JSVAL(newMonitor), NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+
+	JSObject * virtRect = BuildRectObject(cx, newMonitor, &mi.rcWork);
+	JS_DefineProperty(cx, newMonitor, "rcWork", OBJECT_TO_JSVAL(virtRect), NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+	JSObject * realRect = BuildRectObject(cx, newMonitor, &mi.rcMonitor);
+	JS_DefineProperty(cx, newMonitor, "rcMonitor", OBJECT_TO_JSVAL(realRect), NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+	jsval isPrimary = JSVAL_FALSE;
+	if(mi.dwFlags & MONITORINFOF_PRIMARY)
+		isPrimary = JSVAL_TRUE;
+	JS_DefineProperty(cx, newMonitor, "isPrimary", isPrimary, NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+	return TRUE;
+}
+
+JSBool enumdisplaymonitors(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JS_BeginRequest(cx);
+	monitorEnumContext = cx;
+	JSObject * retObj = JS_NewArrayObject(cx, 0, NULL);
+	*rval = OBJECT_TO_JSVAL(retObj);
+	EnumDisplayMonitors(NULL, NULL, MonitorEnumProc, *rval);
+	JS_EndRequest(cx);
+	return JS_TRUE;
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -379,6 +446,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "GeckoCreateView", g2_create_view, 4, 0 },
 		{ "GeckoInit", g2_init, 2, 0 },
 		{ "GeckoTerm", g2_term, 0, 0 },
+		{ "EnumDisplayMonitors", enumdisplaymonitors, 0, 0 },
 		{ 0 }
 	};
 

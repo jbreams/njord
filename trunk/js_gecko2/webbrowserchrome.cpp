@@ -225,9 +225,9 @@ NS_IMETHODIMP WebBrowserChrome::OnLocationChange(nsIWebProgress * /*aWebProgress
     nsCString spec;
     aLocation->GetSpec(spec);
 	if(mCurrentLocation == NULL)
-		mCurrentLocation = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, spec.Length() + 1);
+		mCurrentLocation = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, spec.Length() + sizeof(WCHAR));
 	if(spec.Length() > HeapSize(GetProcessHeap(), 0, mCurrentLocation))
-		mCurrentLocation = (LPSTR)HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, mCurrentLocation, spec.Length() + 1);
+		mCurrentLocation = (LPSTR)HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, mCurrentLocation, spec.Length() + sizeof(WCHAR));
 	strcpy_s(mCurrentLocation, HeapSize(GetProcessHeap(), 0, mCurrentLocation), spec.get());
     return NS_OK;
 }
