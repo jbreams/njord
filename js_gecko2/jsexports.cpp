@@ -391,8 +391,8 @@ BOOL CALLBACK MonitorEnumProc(HMONITOR hMon, HDC a, LPRECT rectForMonitor, LPARA
 {
 	JSObject * arrayObj = JSVAL_TO_OBJECT((jsval)dwData);
 	JSContext * cx = monitorEnumContext;
-	MONITORINFO mi;
-	mi.cbSize = sizeof(MONITORINFO);
+	MONITORINFOEX mi;
+	mi.cbSize = sizeof(MONITORINFOEX);
 	GetMonitorInfo(hMon, &mi);
 	jsuint arrayLength;
 	JS_GetArrayLength(cx, arrayObj, &arrayLength);
@@ -407,6 +407,9 @@ BOOL CALLBACK MonitorEnumProc(HMONITOR hMon, HDC a, LPRECT rectForMonitor, LPARA
 	if(mi.dwFlags & MONITORINFOF_PRIMARY)
 		isPrimary = JSVAL_TRUE;
 	JS_DefineProperty(cx, newMonitor, "isPrimary", isPrimary, NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+
+	JSString * monName = JS_NewUCStringCopyZ(cx, (jschar*)mi.szDevice);
+	JS_DefineProperty(cx, newMonitor, "szDevice", STRING_TO_JSVAL(monName), NULL, NULL, JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
 	return TRUE;
 }
 
