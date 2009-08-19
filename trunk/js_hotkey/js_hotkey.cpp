@@ -37,8 +37,8 @@ DWORD HotKeyThread(LPVOID param)
 {
 	HANDLE runningEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, TEXT("njord_hotkey_running_event"));
 	HANDLE lock = OpenMutex(SYNCHRONIZE, FALSE, TEXT("hotkey_table_mutex"));
-	JSContext * cx = JS_NewContext(JS_GetRuntime(useCx), 0x2000);
-	JS_SetGlobalObject(cx, useGlobal);
+	JSContext * cx = useCx;
+	JS_SetContextThread(cx);
 	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
 	while(WaitForSingleObject(runningEvent, 0) != WAIT_OBJECT_0)
 	{
@@ -108,7 +108,7 @@ DWORD HotKeyThread(LPVOID param)
 				JS_NewNumberValue(cx, vk, &vals[1]);
 				
 				jsval dontneedit;
-				JS_CallFunctionName(cx, useGlobal, curReg->functionName, 2, vals, &dontneedit);
+				JS_CallFunctionName(cx, JS_GetGlobalObject(cx), curReg->functionName, 2, vals, &dontneedit);
 				JS_EndRequest(cx);
 			}
 			curReg = curReg->next;
@@ -116,8 +116,8 @@ DWORD HotKeyThread(LPVOID param)
 		ReleaseMutex(lock);
 	}
 
-	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_END);
 	JS_DestroyContext(cx);
+	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_END);
 	WaitForSingleObject(lock, INFINITE);
 	
 	struct HotKeyRegistration * curReg = hotKeyHead;
@@ -180,8 +180,9 @@ JSBool JSRegisterHotKey(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 	else
 	{
 		hotKeyHead = newReg;
-		useCx = cx;
-		useGlobal = obj;
+		useCx = JS_NewContext(JS_GetRuntime(cx), 0x2000);
+		JS_SetGlobalObject(useCx, obj);
+		JS_ClearContextThread(useCx);
 		HANDLE hotKeyThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)HotKeyThread, NULL, 0, NULL);
 		CloseHandle(hotKeyThread);
 	}
@@ -205,6 +206,7 @@ JSBool JSRegisterHotKey(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 			newReg = newReg->next;
 		}
 		ReleaseMutex(lock);
+		CloseHandle(lock);
 		Sleep(250);
 	}
 	return JS_TRUE;

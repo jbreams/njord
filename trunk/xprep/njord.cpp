@@ -16,6 +16,7 @@
 
 #include "stdafx.h"
 #include "njord.h"
+#include "Tlhelp32.h"
 
 JSRuntime * rt = NULL;
 JSContext * cx = NULL;
@@ -57,11 +58,50 @@ JSBool njord_exit(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 		JS_ValueToUint16(cx, *argv, (uint16*)&exitCode);
 		JS_EndRequest(cx);
 	}
-	JS_DestroyContext(cx);
+	HANDLE hThreadSnap = INVALID_HANDLE_VALUE;
+	THREADENTRY32 te32;
+
+	hThreadSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+	if(hThreadSnap == INVALID_HANDLE_VALUE)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+	te32.dwSize = sizeof(THREADENTRY32);
+	if(!Thread32First(hThreadSnap, &te32))
+	{
+		CloseHandle(hThreadSnap);
+		*rval = JSVAL_FALSE;
+		return JS_FALSE;
+	}
+	DWORD targetProcess = GetCurrentProcessId();
+	DWORD currentThread = GetCurrentThreadId();
+	do
+	{
+		if(te32.th32OwnerProcessID != targetProcess || te32.th32ThreadID == currentThread)
+			continue;
+		HANDLE thread = OpenThread(THREAD_TERMINATE, FALSE, te32.th32ThreadID);
+		if(thread)
+		{
+			TerminateThread(thread, exitCode);
+			CloseHandle(thread);
+		}
+	} while(Thread32Next(hThreadSnap, &te32));
+	CloseHandle(hThreadSnap);
+
+	JSContext *iter = NULL;
+	JS_ContextIterator(rt, &iter);
+	while(iter != NULL)
+	{
+		JSContext * toDestroy = iter;
+		JS_ContextIterator(rt, &iter);
+		JS_SetContextThread(toDestroy);
+		JS_DestroyContext(toDestroy); 
+	}
 	JS_DestroyRuntime(rt);
 	JS_ShutDown();
 
-	TerminateProcess(GetCurrentProcess, exitCode);
+	TerminateProcess(GetCurrentProcess(), exitCode);
 	return JS_FALSE;
 }
 
