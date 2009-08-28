@@ -26,6 +26,8 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsWeakReference.h"
 
+class PrivateData;
+
 class WebBrowserChrome   : public nsIWebBrowserChrome,
 						   public nsIWebBrowserChromeFocus,
 						   public nsIInterfaceRequestor,
@@ -47,6 +49,7 @@ public:
 	nsresult CreateBrowser(HWND nativeWnd);
 	HANDLE		mDocumentLoaded;
 	PRBool		 mAllowClose;
+	PrivateData * mPrivate;
 	JSContext * cx;
 
 protected:
@@ -56,7 +59,6 @@ protected:
     PRUint32     mChromeFlags;
     PRBool       mContinueModalLoop;
     PRBool       mSizeSet;
-	LPSTR		 mCurrentLocation;
 
     nsCOMPtr<nsIWebBrowser> mWebBrowser;
 };
