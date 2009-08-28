@@ -18,6 +18,8 @@ class WebBrowserChrome;
 class DOMEventListener;
 #include "nsCOMPtr.h"
 
+class nsIProxyObjectManager;
+
 class PrivateData 
 {
 public:
@@ -48,6 +50,7 @@ public:
 	nsCOMPtr<nsIDOMWindow> mDOMWindow;
 	nsCOMPtr<nsIProxyObjectManager> nsIPO;
 	PrivateData * next;
+	JSObject * obj;
 
 	JSContext * mContext;
 };

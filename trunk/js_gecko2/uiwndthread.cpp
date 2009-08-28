@@ -286,6 +286,7 @@ LRESULT CALLBACK MozViewProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 }
 extern CRITICAL_SECTION domStateLock;
 extern BYTE domState;
+JSContext * useCx;
 
 DWORD UiThread(LPVOID lpParam)
 {
@@ -307,6 +308,12 @@ DWORD UiThread(LPVOID lpParam)
 	if(initCode != 0)
 		return initCode;
 
+	JS_SetContextThread(useCx);
+	JS_BeginRequest(useCx);
+	JSContext * cx = JS_NewContext(JS_GetRuntime(useCx), 0x2000);
+	JS_SetGlobalObject(cx, JS_GetGlobalObject(useCx));
+	JS_EndRequest(useCx);
+	JS_ClearContextThread(useCx);
 	InitializeCriticalSection(&viewsLock);
 	InitializeCriticalSection(&domStateLock);
 	domState = 0;
@@ -325,10 +332,12 @@ DWORD UiThread(LPVOID lpParam)
 					curView->requestedRect.right - curView->requestedRect.left, curView->requestedRect.bottom - curView->requestedRect.top, NULL, NULL,
 					GetModuleHandle(NULL), NULL);
 				curView->mNativeWindow = nWnd;
+				curView->mContext = cx;
 				curView->mChrome = new WebBrowserChrome();
 				curView->mChrome->CreateBrowser(nWnd);
 				curView->mChrome->GetWebBrowser(getter_AddRefs(curView->mBrowser));
-				curView->mChrome->cx = curView->mContext;
+				curView->mChrome->cx = cx;
+				curView->mChrome->mPrivate = curView;
 				SetWindowLongPtrW(nWnd, GWLP_USERDATA, (LONG_PTR)curView->mChrome);
 				curView->mDOMWindow = do_GetInterface(curView->mBrowser);
 
@@ -363,6 +372,7 @@ DWORD UiThread(LPVOID lpParam)
 	NS_IF_RELEASE(sProfileLock);
 	sProfileDir = NULL;
 
+	JS_DestroyContext(cx);
 	InterlockedDecrement(&ThreadInitialized);
 	DeleteCriticalSection(&viewsLock);
 	UnregisterClassW(TEXT("NJORD_GECKOEMBED_2"), GetModuleHandle(NULL));
@@ -380,7 +390,9 @@ JSBool g2_init(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
-	jsrefcount rCount = JS_SuspendRequest(cx);
+	JS_EndRequest(cx);
+	JS_ClearContextThread(cx);
+	useCx = cx;
 	HANDLE threadHandle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)UiThread, pathToGRE, 0, NULL);
 	LONG stillWaiting = 1;
 	DWORD exitCode;
@@ -392,12 +404,11 @@ JSBool g2_init(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval *
 		if(exitCode != STILL_ACTIVE)
 			break;
 	}
-	JS_ResumeRequest(cx, rCount);
+	JS_SetContextThread(cx);
 	if(exitCode != STILL_ACTIVE)
 		*rval = JSVAL_FALSE;
 	else
 		*rval = JSVAL_TRUE;
-	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 

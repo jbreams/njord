@@ -25,6 +25,7 @@
 #include "nsIWebNavigation.h"
 #include "nsMemory.h"
 #include "nsIWidget.h"
+#include "privatedata.h"
 
 extern CRITICAL_SECTION domNodeLock;
 
@@ -34,7 +35,6 @@ WebBrowserChrome::WebBrowserChrome()
 	mSizeSet = PR_FALSE;
 	mDocumentLoaded = PR_FALSE;
 	mContinueModalLoop = PR_FALSE;
-	mCurrentLocation = NULL;
 	mChromeFlags = 0;
 	mDocumentLoaded = CreateEvent(NULL, TRUE, FALSE, NULL);
 }
@@ -224,11 +224,11 @@ NS_IMETHODIMP WebBrowserChrome::OnLocationChange(nsIWebProgress * /*aWebProgress
     NS_ENSURE_ARG_POINTER(aLocation);
     nsCString spec;
     aLocation->GetSpec(spec);
-	if(mCurrentLocation == NULL)
-		mCurrentLocation = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, spec.Length() + sizeof(WCHAR));
-	if(spec.Length() > HeapSize(GetProcessHeap(), 0, mCurrentLocation))
-		mCurrentLocation = (LPSTR)HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, mCurrentLocation, spec.Length() + sizeof(WCHAR));
-	strcpy_s(mCurrentLocation, HeapSize(GetProcessHeap(), 0, mCurrentLocation), spec.get());
+	JS_BeginRequest(cx);
+	JSString * newLocation = JS_NewString(cx, (char*)spec.get(), spec.Length());
+	jsval newLocationVal = STRING_TO_JSVAL(newLocation);
+	JS_SetProperty(cx, mPrivate->obj, "location", &newLocationVal);
+	JS_EndRequest(cx);
     return NS_OK;
 }
 

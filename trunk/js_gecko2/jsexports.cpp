@@ -107,6 +107,7 @@ JSBool g2_create_view(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, 
 	newPrivateData->mDOMWindow = do_GetInterface(browser);
 
 	JSObject * retObj = JS_NewObject(cx, &GeckoViewClass, GeckoViewProto, obj);
+	newPrivateData->obj = retObj;
 	*rval = OBJECT_TO_JSVAL(retObj);
 	JS_SetPrivate(cx, retObj, newPrivateData);
 	JS_EndRequest(cx);
@@ -159,7 +160,6 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 		JS_EndRequest(cx);
 		return JS_FALSE;
 	}
-	JS_EndRequest(cx);
 	DOMEventListener * curl = mPrivate->mDOMListener;
 	mPrivate->mDOMListener = NULL;
 	EnterCriticalSection(&domStateLock);
@@ -177,9 +177,11 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	nsCOMPtr<nsIURI> uri;
 	rv = NS_NewURI(getter_AddRefs(uri), nsDependentString(baseUrl));
 
+	jsrefcount rCount = JS_SuspendRequest(cx);
 	wbStream->OpenStream(uri, nsDependentCString(contentType));
 	wbStream->AppendToStream((PRUint8*)dataToLoad, strlen(dataToLoad));
 	wbStream->CloseStream();
+	JS_ResumeRequest(cx, rCount);
 	mPrivate->mDOMWindow = do_GetInterface(mWebBrowser);
 	if(target != NULL && !JSVAL_IS_NULL(argv[2]))
 	{
@@ -213,13 +215,16 @@ JSBool g2_load_data(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 		target->AddEventListener(actionString, tempListener, PR_FALSE);
 		LeaveCriticalSection(&domStateLock);
 		HANDLE waitHandle = tempListener->GetHandle();
+		jsrefcount rCount = JS_SuspendRequest(cx);
 		*rval = WaitForSingleObject(waitHandle, INFINITE) == WAIT_OBJECT_0 ? JSVAL_TRUE : JSVAL_FALSE;
+		JS_ResumeRequest(cx, rCount);
 		CloseHandle(waitHandle);
 		EnterCriticalSection(&domStateLock);
 		target->RemoveEventListener(actionString, tempListener, PR_FALSE);
 		LeaveCriticalSection(&domStateLock);
 		tempListener->Release();
 	}
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -236,7 +241,6 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	}
 
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
-	JS_EndRequest(cx);
 	DOMEventListener * curl = mPrivate->mDOMListener;
 	mPrivate->mDOMListener = NULL;
 	EnterCriticalSection(&domStateLock);
@@ -250,7 +254,9 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 	nsCOMPtr<nsIWebBrowser> mBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mBrowser));
 	nsCOMPtr<nsIWebNavigation> mWebNavigation = do_QueryInterface(mBrowser);
+	jsrefcount rCount = JS_SuspendRequest(cx);
 	nsresult result = mWebNavigation->LoadURI(NS_ConvertUTF8toUTF16(uri).get(), nsIWebNavigation::LOAD_FLAGS_NONE, NULL, NULL, NULL);
+	JS_ResumeRequest(cx, rCount);
 	*rval = result == NS_OK ? JSVAL_TRUE : JSVAL_FALSE;
 	if(target != NULL)
 	{
@@ -285,13 +291,16 @@ JSBool g2_load_uri(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 		target->AddEventListener(actionString, tempListener, PR_FALSE);
 		LeaveCriticalSection(&domStateLock);
 		HANDLE waitHandle = tempListener->GetHandle();
+		jsrefcount rCount = JS_SuspendRequest(cx);
 		*rval = WaitForSingleObject(waitHandle, INFINITE) == WAIT_OBJECT_0 ? JSVAL_TRUE : JSVAL_FALSE;
+		JS_ResumeRequest(cx, rCount);
 		CloseHandle(waitHandle);
 		EnterCriticalSection(&domStateLock);
 		target->RemoveEventListener(actionString, tempListener, PR_FALSE);
 		LeaveCriticalSection(&domStateLock);
 		tempListener->Release();
 	}
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -445,6 +454,11 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ 0 }
 	};
 
+	JSPropertySpec geckoViewProps[] = {
+		{ "location", 0, JSPROP_PERMANENT | JSPROP_READONLY | JSPROP_ENUMERATE, NULL, NULL },
+		{ 0 }
+	};
+
 	JSFunctionSpec geckoFuncs[] = {
 		{ "GeckoCreateView", g2_create_view, 4, 0 },
 		{ "GeckoInit", g2_init, 2, 0 },
@@ -454,7 +468,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 	};
 
 	JS_BeginRequest(cx);
-	GeckoViewProto = JS_InitClass(cx, global, NULL, &GeckoViewClass, NULL, 0, NULL, geckoViewFuncs, NULL, NULL);
+	GeckoViewProto = JS_InitClass(cx, global, NULL, &GeckoViewClass, NULL, 0, geckoViewProps, geckoViewFuncs, NULL, NULL);
 	JS_DefineFunctions(cx, global, geckoFuncs);
 	initDOMNode(cx, global);
 	JS_EndRequest(cx);

@@ -30,16 +30,14 @@ struct HotKeyRegistration {
 } * hotKeyHead;
 BOOL registrationsChanged;
 
-JSContext * useCx;
-JSObject * useGlobal;
-
 DWORD HotKeyThread(LPVOID param)
 {
 	HANDLE runningEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, TEXT("njord_hotkey_running_event"));
 	HANDLE lock = OpenMutex(SYNCHRONIZE, FALSE, TEXT("hotkey_table_mutex"));
-	JSContext * cx = useCx;
-	JS_SetContextThread(cx);
-	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
+	JSContext * useCx = (JSContext*)param;
+	JSContext * cx = JS_NewContext(JS_GetRuntime(useCx), 0x2000);
+	JS_SetGlobalObject(cx, JS_GetGlobalObject(useCx));
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 	while(WaitForSingleObject(runningEvent, 0) != WAIT_OBJECT_0)
 	{
 		if(registrationsChanged == TRUE)
@@ -94,6 +92,7 @@ DWORD HotKeyThread(LPVOID param)
 			continue;
 		}
 
+		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
 		UINT vk = HIWORD(msg.lParam), flags = LOWORD(msg.lParam);
 		WaitForSingleObject(lock, INFINITE);
 		struct HotKeyRegistration * curReg = hotKeyHead;
@@ -113,11 +112,12 @@ DWORD HotKeyThread(LPVOID param)
 			}
 			curReg = curReg->next;
 		}
+		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 		ReleaseMutex(lock);
 	}
 
 	JS_DestroyContext(cx);
-	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_END);
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
 	WaitForSingleObject(lock, INFINITE);
 	
 	struct HotKeyRegistration * curReg = hotKeyHead;
@@ -180,10 +180,7 @@ JSBool JSRegisterHotKey(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 	else
 	{
 		hotKeyHead = newReg;
-		useCx = JS_NewContext(JS_GetRuntime(cx), 0x2000);
-		JS_SetGlobalObject(useCx, obj);
-		JS_ClearContextThread(useCx);
-		HANDLE hotKeyThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)HotKeyThread, NULL, 0, NULL);
+		HANDLE hotKeyThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)HotKeyThread, cx, 0, NULL);
 		CloseHandle(hotKeyThread);
 	}
 	ReleaseMutex(lock);
