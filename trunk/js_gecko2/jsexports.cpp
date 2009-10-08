@@ -355,8 +355,12 @@ JSBool g2_get_dom(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 	JS_BeginRequest(cx);
 	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
 
+	nsCOMPtr<nsIWebBrowser> mWebBrowser;
+	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mWebBrowser));
+	nsCOMPtr<nsIDOMWindow> mDOMWindow;
+	mWebBrowser->GetContentDOMWindow(getter_AddRefs(mDomWindow));
 	nsCOMPtr<nsIDOMDocument> mDocument;
-	mPrivate->mDOMWindow->GetDocument(getter_AddRefs(mDocument));
+	mDOMWindow->GetDocument(getter_AddRefs(mDocument));
 	nsCOMPtr<nsIDOMNode> mNode = do_QueryInterface(mDocument);
 
 	JSObject * retObj = JS_NewObject(cx, &lDOMDocClass, lDOMDocProto, obj);
@@ -377,6 +381,18 @@ JSBool g2_repaint(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 	EnterCriticalSection(&domStateLock);
 	mBaseWindow->Repaint(PR_TRUE);
 	LeaveCriticalSection(&domStateLock);
+	return JS_TRUE;
+}
+
+JSBool g2_hide(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JS_BeginRequest(cx);
+	PrivateData * mPrivate = (PrivateData*)JS_GetPrivate(cx, obj);
+	JS_EndRequest(cx);
+	if(argc > 0 && *argv == JSVAL_FALSE)
+		ShowWindow(mPrivate->mNativeWindow, SW_SHOW);
+	else
+		ShowWindow(mPrivate->mNativeWindow, SW_HIDE);
 	return JS_TRUE;
 }
 
@@ -451,6 +467,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "GetElementByID", g2_get_element_by_id, 1, 0 },
 		{ "Repaint", g2_repaint, 0, 0 },
 		{ "ImportDOM", g2_import_dom_string, 1, 0 },
+		{ "Hide", g2_hide, 1, 0 },
 		{ 0 }
 	};
 
