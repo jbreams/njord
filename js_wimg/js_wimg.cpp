@@ -37,25 +37,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 	return TRUE;
 }
 
-JSConstDoubleSpec wimg_consts [] = {
-	{ WIM_GENERIC_READ, "WIM_GENERIC_READ", 0, 0 },
-	{ WIM_GENERIC_WRITE, "WIM_GENERIC_WRITE", 0, 0, },
-	{ WIM_CREATE_NEW, "WIM_CREATE_NEW", 0, 0 },
-	{ WIM_CREATE_ALWAYS, "WIM_CREATE_ALWAYS", 0, 0 },
-	{ WIM_OPEN_EXISTING, "WIM_OPEN_EXISTING", 0, 0 },
-	{ WIM_OPEN_ALWAYS, "WIM_OPEN_ALWAYS", 0, 0 },
-	{ WIM_FLAG_VERIFY, "WIM_FLAG_VERIFY", 0, 0 },
-	{ WIM_FLAG_SHARE_WRITE, "WIM_FLAG_SHARE_WRITE", 0, 0 },
-	{ WIM_COMPRESS_NONE, "WIM_COMPRESS_NONE", 0, 0 },
-	{ WIM_COMPRESS_XPRESS, "WIM_COMPRESS_XPRESS", 0, 0 },
-	{ WIM_COMPRESS_LZX, "WIM_COMPRESS_LXZ", 0, 0 },
-	{ WIM_CREATED_NEW, "WIM_CREATED_NEW", 0, 0 },
-	{ WIM_OPENED_EXISTING, "WIM_OPENED_EXISTING", 0, 0 },
-	{ WIM_FLAG_INDEX, "WIM_FLAG_INDEX", 0, 0 },
-	{ WIM_FLAG_NO_APPLY, "WIM_FLAG_NO_APPLY", 0, 0 },
-	{ WIM_FLAG_FILEINFO, "WIM_FLAG_FILEINFO", 0, 0 },
-	{ 0 },
-};
 extern struct uiInfo * uiHead;
 extern HANDLE headMutex;
 
@@ -166,8 +147,9 @@ JSBool wimg_delete_image(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 		return JS_FALSE;
 	}
 
-	JS_EndRequest(cx);
+	JS_YieldRequest(cx);
 	*rval = WIMDeleteImage(wimFile, imageIndex) ? JSVAL_TRUE : JSVAL_FALSE;
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
@@ -254,6 +236,47 @@ JSBool wimg_apply_image(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 	jsrefcount rCount = JS_SuspendRequest(cx);
 	*rval = WIMApplyImage(imageHandle, path, applyFlags) ? JSVAL_TRUE : JSVAL_FALSE;
 	JS_ResumeRequest(cx, rCount);
+	if(*rval == JSVAL_FALSE)
+	{
+		JS_EndRequest(cx);
+		return JS_TRUE;
+	}
+
+	TCHAR volumeName[MAX_PATH + 1];
+	memset(volumeName, 0, sizeof(TCHAR) * (MAX_PATH + 1));
+	_tcscat_s(volumeName, MAX_PATH + 1, TEXT("\\\\.\\"));
+	_tcscat_s(volumeName, (MAX_PATH + 1) - 4, path);
+
+	if(!GetVolumePathName(volumeName, volumeName, MAX_PATH + 1))
+	{
+		JS_EndRequest(cx);
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+	
+	LPTSTR lastSlash = _tcsrchr(volumeName, _T('\\'));
+	*lastSlash = '\0';
+
+	HANDLE volumeHandle = CreateFile(volumeName, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+	if(volumeHandle == INVALID_HANDLE_VALUE)
+	{
+		JS_EndRequest(cx);
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+	
+	rCount = JS_SuspendRequest(cx);
+	if(!FlushFileBuffers(volumeHandle))
+	{
+		CloseHandle(volumeHandle);
+		JS_ResumeRequest(cx, rCount);
+		JS_EndRequest(cx);
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+	CloseHandle(volumeHandle);
+	JS_ResumeRequest(cx, rCount);
+	*rval = JSVAL_TRUE;
 	JS_EndRequest(cx);
 	return JS_TRUE;
 }
@@ -307,7 +330,7 @@ JSBool wimg_image_info_getter(JSContext * cx, JSObject * obj, jsval idval, jsval
 	if(!WIMGetImageInformation(hImage, &rawImageInfo, &rawImageInfoSize))
 		*vp = JSVAL_NULL;
 
-	JSString * xmlStr = JS_NewUCStringCopyZ(cx, (jschar*)rawImageInfo);
+	JSString * xmlStr = JS_NewUCStringCopyN(cx, (jschar*)rawImageInfo, rawImageInfoSize / sizeof(WCHAR));
 	if(xmlStr == NULL)
 	{
 		JS_ReportError(cx, "Error creating xml string from raw image information");
@@ -318,12 +341,37 @@ JSBool wimg_image_info_getter(JSContext * cx, JSObject * obj, jsval idval, jsval
 	*vp = xmlStrVal;
 	LocalFree(rawImageInfo);
 
+	WIMSetImageInformation(hImage, JS_GetStringChars(xmlStr), JS_GetStringLength(xmlStr) * sizeof(jschar));
 	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 
 JSBool wimg_image_info_setter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 {
+	JS_BeginRequest(cx);
+	HANDLE hImage = JS_GetPrivate(cx, obj);
+
+	JSString * newInfo = JS_ValueToString(cx, *vp);
+	*vp = STRING_TO_JSVAL(newInfo);
+	
+	DWORD length = JS_GetStringLength(newInfo);
+	LPWSTR chars = (LPWSTR)JS_GetStringChars(newInfo);
+	if(*chars != 0xfeff)
+	{
+		length++;
+		LPWSTR back = chars;
+		chars = (LPWSTR)JS_malloc(cx, sizeof(WCHAR) * (length + 1));
+		memset(chars, 0, sizeof(WCHAR) * (length + 1));
+		*chars = 0xfeff;
+		wcscat(chars, back);
+		newInfo = JS_NewUCString(cx, (jschar*)chars, sizeof(WCHAR) * length);
+		*vp = STRING_TO_JSVAL(newInfo);
+	}
+
+	DWORD errorCode = 0;
+	if(!WIMSetImageInformation(hImage, (LPVOID)chars, length * sizeof(WCHAR)))
+		errorCode = GetLastError();
+	JS_EndRequest(cx);
 	return JS_TRUE;
 
 }
@@ -355,8 +403,28 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 	};
 
 	JSPropertySpec wimProps[] = {
-		{ "Information", 0, JSPROP_PERMANENT, wimg_image_info_getter, wimg_image_info_setter },
+		{ "information", 0, JSPROP_PERMANENT, wimg_image_info_getter, wimg_image_info_setter },
 		{ 0 }
+	};
+
+	JSConstDoubleSpec wimg_consts [] = {
+		{ WIM_GENERIC_READ, "WIM_GENERIC_READ", 0, 0 },
+		{ WIM_GENERIC_WRITE, "WIM_GENERIC_WRITE", 0, 0, },
+		{ WIM_CREATE_NEW, "WIM_CREATE_NEW", 0, 0 },
+		{ WIM_CREATE_ALWAYS, "WIM_CREATE_ALWAYS", 0, 0 },
+		{ WIM_OPEN_EXISTING, "WIM_OPEN_EXISTING", 0, 0 },
+		{ WIM_OPEN_ALWAYS, "WIM_OPEN_ALWAYS", 0, 0 },
+		{ WIM_FLAG_VERIFY, "WIM_FLAG_VERIFY", 0, 0 },
+		{ WIM_FLAG_SHARE_WRITE, "WIM_FLAG_SHARE_WRITE", 0, 0 },
+		{ WIM_COMPRESS_NONE, "WIM_COMPRESS_NONE", 0, 0 },
+		{ WIM_COMPRESS_XPRESS, "WIM_COMPRESS_XPRESS", 0, 0 },
+		{ WIM_COMPRESS_LZX, "WIM_COMPRESS_LXZ", 0, 0 },
+		{ WIM_CREATED_NEW, "WIM_CREATED_NEW", 0, 0 },
+		{ WIM_OPENED_EXISTING, "WIM_OPENED_EXISTING", 0, 0 },
+		{ WIM_FLAG_INDEX, "WIM_FLAG_INDEX", 0, 0 },
+		{ WIM_FLAG_NO_APPLY, "WIM_FLAG_NO_APPLY", 0, 0 },
+		{ WIM_FLAG_FILEINFO, "WIM_FLAG_FILEINFO", 0, 0 },
+		{ 0 },
 	};
 
 	JS_BeginRequest(cx);

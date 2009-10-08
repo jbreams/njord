@@ -38,9 +38,25 @@ BOOL MatchEntry::Match(LPWSTR target)
 {
 	LPWSTR t = target, m = matchString;
 	if(fileName) // If we're matching against a filename, advance the target to the filename portion
-		t = wcsrchr(t, L'\\') + 1;
+	{
+		LPWSTR sp = target;
+		while(*t != L'\0')
+		{
+			if(*t == L'\\' && *(t + 1) != L'\0')
+				sp = t;
+			t++;
+		}
+		t = sp;
+	}
 	else // Otherwise advance past the drive name ("c:\temp" -> "\temp")
-		t = wcschr(t, L'\\'); 
+	{
+		while(*t != L'\\' && *t != L'\0')
+			t++;
+		if(*t == L'\0')
+			t = target;
+		else if(*(t + 1) != L'\0')
+			t++;
+	}
 	while(*t) // While the target has more characters
 	{
 		if(*m == L'*') // If the match has a wildcard
