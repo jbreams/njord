@@ -358,7 +358,7 @@ JSBool g2_get_dom(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 	nsCOMPtr<nsIWebBrowser> mWebBrowser;
 	mPrivate->nsIPO->GetProxyForObject(NS_PROXY_TO_MAIN_THREAD, nsIWebBrowser::GetIID(), mPrivate->mBrowser, NS_PROXY_SYNC, getter_AddRefs(mWebBrowser));
 	nsCOMPtr<nsIDOMWindow> mDOMWindow;
-	mWebBrowser->GetContentDOMWindow(getter_AddRefs(mDomWindow));
+	mWebBrowser->GetContentDOMWindow(getter_AddRefs(mDOMWindow));
 	nsCOMPtr<nsIDOMDocument> mDocument;
 	mDOMWindow->GetDocument(getter_AddRefs(mDocument));
 	nsCOMPtr<nsIDOMNode> mNode = do_QueryInterface(mDocument);

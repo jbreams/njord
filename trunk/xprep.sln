@@ -23,6 +23,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_crypto", "js_crypto\js_crypto.vcproj", "{35FB32B8-28A6-4F52-BCA8-D6EB4B34EB09}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_sqlite", "js_sqlite\js_sqlite.vcproj", "{EC7DFC13-81D0-4AFB-ABF8-DB3ED9C6ED0B}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_ldap", "js_ldap\js_ldap.vcproj", "{67CD5B6E-B343-4840-A52B-D2796D5855F0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -69,6 +73,14 @@ Global
 		{35FB32B8-28A6-4F52-BCA8-D6EB4B34EB09}.Debug|Win32.Build.0 = Debug|Win32
 		{35FB32B8-28A6-4F52-BCA8-D6EB4B34EB09}.Release|Win32.ActiveCfg = Release|Win32
 		{35FB32B8-28A6-4F52-BCA8-D6EB4B34EB09}.Release|Win32.Build.0 = Release|Win32
+		{EC7DFC13-81D0-4AFB-ABF8-DB3ED9C6ED0B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{EC7DFC13-81D0-4AFB-ABF8-DB3ED9C6ED0B}.Debug|Win32.Build.0 = Debug|Win32
+		{EC7DFC13-81D0-4AFB-ABF8-DB3ED9C6ED0B}.Release|Win32.ActiveCfg = Release|Win32
+		{EC7DFC13-81D0-4AFB-ABF8-DB3ED9C6ED0B}.Release|Win32.Build.0 = Release|Win32
+		{67CD5B6E-B343-4840-A52B-D2796D5855F0}.Debug|Win32.ActiveCfg = Debug|Win32
+		{67CD5B6E-B343-4840-A52B-D2796D5855F0}.Debug|Win32.Build.0 = Debug|Win32
+		{67CD5B6E-B343-4840-A52B-D2796D5855F0}.Release|Win32.ActiveCfg = Release|Win32
+		{67CD5B6E-B343-4840-A52B-D2796D5855F0}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
