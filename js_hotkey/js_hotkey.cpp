@@ -15,125 +15,84 @@
  */
 #include "stdafx.h"
 
-#define STATE_ADDED 0
-#define STATE_REGISTERED 1
-#define STATE_REMOVED 2
-
-struct HotKeyRegistration {
-	LPSTR functionName;
-	UINT flags;
+DWORD threadId = 0;
+struct hotKeyRegistration {
+	UINT fsModifiers;
 	UINT vk;
 	int id;
-	BYTE state;
+	LPSTR functionName;
+	struct hotKeyRegistration * next;
+};
 
-	struct HotKeyRegistration * next;
-} * hotKeyHead;
-BOOL registrationsChanged;
-
-DWORD HotKeyThread(LPVOID param)
+DWORD hotkeyThread(LPVOID param)
 {
-	HANDLE runningEvent = OpenEvent(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, TEXT("njord_hotkey_running_event"));
-	HANDLE lock = OpenMutex(SYNCHRONIZE, FALSE, TEXT("hotkey_table_mutex"));
-	JSContext * useCx = (JSContext*)param;
-	JSContext * cx = JS_NewContext(JS_GetRuntime(useCx), 0x2000);
-	JS_SetGlobalObject(cx, JS_GetGlobalObject(useCx));
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
-	while(WaitForSingleObject(runningEvent, 0) != WAIT_OBJECT_0)
+	struct hotKeyRegistration * hotKeyHead = NULL;
+	int curId = 0;
+	JSContext * cx = JS_NewContext(JS_GetRuntime((JSContext*)param), 0x2000);
+	JS_SetGlobalObject(cx, JS_GetGlobalObject((JSContext*)param));
+
+	MSG msg;
+	while(GetMessage(&msg, NULL, 0, 0))
 	{
-		if(registrationsChanged == TRUE)
+		if(msg.message == WM_APP + 1)
 		{
-			WaitForSingleObject(lock, INFINITE);
-			struct HotKeyRegistration * curRegistration = hotKeyHead, *prevReg = NULL;
-			while(curRegistration != NULL)
+			struct hotKeyRegistration * msgToAdd = (struct hotKeyRegistration*)msg.lParam;
+			if(RegisterHotKey(NULL, curId, msgToAdd->fsModifiers, msgToAdd->vk))
 			{
-				BOOL advance = TRUE;
-				if(curRegistration->state == STATE_ADDED)
-				{
-					if(curRegistration->next != NULL)
-						curRegistration->id = curRegistration->next->id + 1;
-					else
-						curRegistration->id = 0;
-					if(RegisterHotKey(NULL, curRegistration->id, curRegistration->flags, curRegistration->vk))
-						curRegistration->state = STATE_REGISTERED;
-				}
-				else if(curRegistration->state == STATE_REMOVED)
-				{
-					struct HotKeyRegistration * freer = curRegistration;
-					UnregisterHotKey(NULL, curRegistration->id);
-					HeapFree(GetProcessHeap(), 0, curRegistration->functionName);
-					if(prevReg != NULL)
-					{
-						prevReg->next = curRegistration->next;
-						curRegistration = curRegistration->next;
-					}
-					else
-					{
-						hotKeyHead = curRegistration->next;
-						curRegistration = hotKeyHead;
-					}
-					HeapFree(GetProcessHeap(), 0, freer);
-					advance = FALSE;
-				}
-				if(advance == TRUE)
-				{
-					prevReg = curRegistration;
-					curRegistration = curRegistration->next;
-				}
+				msgToAdd->id = curId;
+				msgToAdd->next = hotKeyHead;
+				hotKeyHead = msgToAdd;
 			}
-			registrationsChanged = FALSE;
-			ReleaseMutex(lock);
+			else
+				msgToAdd->id = -2;
 		}
-
-		MSG msg;
-		memset(&msg, 0, sizeof(MSG));
-		if(!PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) || msg.message != WM_HOTKEY)
+		else if(msg.message == WM_APP + 2)
 		{
-			Sleep(250);
-			continue;
-		}
-
-		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
-		UINT vk = HIWORD(msg.lParam), flags = LOWORD(msg.lParam);
-		WaitForSingleObject(lock, INFINITE);
-		struct HotKeyRegistration * curReg = hotKeyHead;
-		while(curReg != NULL)
-		{
-			if(curReg->vk == vk && curReg->flags == flags)
+			UINT id = msg.wParam;
+			struct hotKeyRegistration * curReg = hotKeyHead, *prevReg = NULL;
+			while(curReg != NULL && curReg->id != id)
 			{
-				jsval vals[2];
-				vals[0] = JSVAL_VOID; vals[1] = JSVAL_VOID;
+				prevReg = curReg;
+				curReg = curReg->next;
+			}
+			if(curReg == NULL)
+				continue;
+			if(prevReg != NULL)
+				prevReg->next = curReg->next;
+			else
+				hotKeyHead = curReg->next;
+			UnregisterHotKey(NULL, id);
+			HeapFree(GetProcessHeap(), 0, curReg->functionName);
+			HeapFree(GetProcessHeap(), 0, curReg);
+		}
+		else if(msg.message == WM_HOTKEY)
+		{
+			UINT vk = HIWORD(msg.lParam), fsModifiers = LOWORD(msg.lParam);
+			struct hotKeyRegistration * curReg = hotKeyHead;
+			while(curReg != NULL && curReg->fsModifiers != fsModifiers && curReg->vk != vk)
+				curReg = curReg->next;
+			if(curReg != NULL)
+			{
 				JS_BeginRequest(cx);
-				JS_NewNumberValue(cx, flags, &vals[0]);
-				JS_NewNumberValue(cx, vk, &vals[1]);
-				
-				jsval dontneedit;
-				JS_CallFunctionName(cx, JS_GetGlobalObject(cx), curReg->functionName, 2, vals, &dontneedit);
+				jsval argv[3];
+				argv[0] = INT_TO_JSVAL(fsModifiers);
+				argv[1] = INT_TO_JSVAL(vk);
+				argv[3] = JSVAL_VOID;
+				JS_CallFunctionName(cx, JS_GetGlobalObject(cx), curReg->functionName, 2, argv, &argv[2]);
 				JS_EndRequest(cx);
 			}
-			curReg = curReg->next;
 		}
-		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
-		ReleaseMutex(lock);
 	}
-
 	JS_DestroyContext(cx);
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
-	WaitForSingleObject(lock, INFINITE);
-	
-	struct HotKeyRegistration * curReg = hotKeyHead;
+
+	struct hotKeyRegistration * curReg = hotKeyHead, *nextReg = NULL;
 	while(curReg != NULL)
 	{
-		struct HotKeyRegistration * next = curReg->next;
-		UnregisterHotKey(NULL, curReg->id);
+		nextReg = curReg->next;
 		HeapFree(GetProcessHeap(), 0, curReg->functionName);
 		HeapFree(GetProcessHeap(), 0, curReg);
-		curReg = next;
+		curReg = nextReg;
 	}
-	hotKeyHead = NULL;
-	ResetEvent(runningEvent);
-	CloseHandle(runningEvent);
-	ReleaseMutex(lock);
-	CloseHandle(lock);
 	return 0;
 }
 
@@ -163,49 +122,34 @@ JSBool JSRegisterHotKey(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 		keyCode[0] -= 0x20;
 	vkCode = (UINT)keyCode[0];
 
-	HANDLE runningEvent = CreateEvent(NULL, TRUE, FALSE, TEXT("njord_hotkey_running_event"));
-	struct HotKeyRegistration * newReg = (struct HotKeyRegistration*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(struct HotKeyRegistration));
+	struct hotKeyRegistration * newReg = (struct hotKeyRegistration*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(struct hotKeyRegistration));
 	newReg->functionName = (LPSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, strlen(functionName) + 1);
 	strcpy_s(newReg->functionName, strlen(functionName) + 1, functionName);
+	newReg->fsModifiers = flags;
 	newReg->vk = vkCode;
-	newReg->flags = flags;
+	newReg->id = -1;
 
-	HANDLE lock = OpenMutex(SYNCHRONIZE, FALSE, TEXT("hotkey_table_mutex"));
-	registrationsChanged = TRUE;
-	if(hotKeyHead != NULL)
+	if(threadId == 0)
 	{
-		newReg->next = hotKeyHead;
-		hotKeyHead = newReg;
-	}
-	else
-	{
-		hotKeyHead = newReg;
-		HANDLE hotKeyThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)HotKeyThread, cx, 0, NULL);
-		CloseHandle(hotKeyThread);
-	}
-	ReleaseMutex(lock);
-
-	*rval = JSVAL_VOID;
-	while(*rval == JSVAL_VOID)
-	{
-		lock = OpenMutex(SYNCHRONIZE, FALSE, TEXT("hotkey_table_mutex"));
-		newReg = hotKeyHead;
-		while(newReg != NULL)
+		HANDLE hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)hotkeyThread, (LPVOID)cx, 0, &threadId);
+		if(hThread == INVALID_HANDLE_VALUE)
 		{
-			int nameMatch = strcmp(newReg->functionName, functionName);
-			if(newReg->flags == flags && newReg->vk == vkCode && nameMatch  == 0 && newReg->state == STATE_REGISTERED)
-			{
-				JS_BeginRequest(cx);
-				JS_NewNumberValue(cx, newReg->id, rval);
-				JS_EndRequest(cx);
-				break;
-			}
-			newReg = newReg->next;
+			*rval = JSVAL_FALSE;
+			return JS_TRUE;
 		}
-		ReleaseMutex(lock);
-		CloseHandle(lock);
-		Sleep(250);
+		CloseHandle(hThread);
 	}
+
+	while(!PostThreadMessage(threadId, WM_APP + 1, 0, (LPARAM)newReg))
+		Sleep(200);
+	while(newReg->id == -1)
+		Sleep(200);
+	if(newReg->id == -2)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+	*rval = INT_TO_JSVAL(newReg->id);
 	return JS_TRUE;
 }
 
@@ -220,30 +164,27 @@ JSBool JSUnregisterHotKey(JSContext * cx, JSObject * obj, uintN argc, jsval * ar
 		return JS_FALSE;
 	}
 	JS_EndRequest(cx);
-
-	HANDLE lock = OpenMutex(SYNCHRONIZE, FALSE, TEXT("hotkey_table_mutex"));
-	struct HotKeyRegistration * curReg = hotKeyHead;
-	while(curReg != NULL && curReg->id != id)
-		curReg = curReg->next;
-	if(curReg == NULL)
-		*rval = JSVAL_FALSE;
-	else
+	if(threadId == 0)
 	{
-		registrationsChanged = TRUE;
-		curReg->state = STATE_REMOVED;
-		*rval = JSVAL_TRUE;
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
 	}
-	ReleaseMutex(lock);
+
+	while(!PostThreadMessage(threadId, WM_APP + 2, (WPARAM)id, 0))
+		Sleep(200);
+	*rval = JSVAL_TRUE;
 	return JS_TRUE;
 }
 
 JSBool JSStopHotKeys(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	HANDLE runningEvent = OpenEvent(SYNCHRONIZE, FALSE, TEXT("hotkey_running_event"));
-	SetEvent(runningEvent);
-	while(WaitForSingleObject(runningEvent, 0) == WAIT_OBJECT_0)
-		Sleep(250);
-	CloseHandle(runningEvent);
+	if(threadId == 0)
+	{
+		*rval = JSVAL_FALSE;
+		return JS_TRUE;
+	}
+	while(!PostThreadMessage(threadId, WM_QUIT, 0, 0))
+		Sleep(200);
 	*rval = JSVAL_TRUE;
 	return JS_TRUE;
 }
@@ -268,7 +209,6 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ 0 }
 	};
 
-	CreateMutex(NULL, FALSE, TEXT("hotkey_table_mutex"));
 	JS_BeginRequest(cx);
 	JS_DefineConstDoubles(cx, global, hotKeyConsts);
 	JS_DefineFunctions(cx, global, hotKeyFunctions);
@@ -278,13 +218,10 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 
 BOOL __declspec(dllexport) CleanupExports(JSContext * cx, JSObject * global)
 {
-	if(hotKeyHead != NULL)
+	if(threadId != 0)
 	{
-		HANDLE runningEvent = OpenEvent(SYNCHRONIZE, FALSE, TEXT("hotkey_running_event"));
-		SetEvent(runningEvent);
-		while(WaitForSingleObject(runningEvent, 0) == WAIT_OBJECT_0)
-			Sleep(250);
-		CloseHandle(runningEvent);
+		while(!PostThreadMessage(threadId, WM_QUIT, 0, 0))
+			Sleep(200);
 	}
 	return TRUE;
 }

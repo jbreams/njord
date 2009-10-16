@@ -30,6 +30,7 @@
 #define JS_THREADSAFE
 #include <jsapi.h>
 #include <jsstr.h>
-
+#define WM_APP_ADDKEY WM_APP + 1
+#define WM_APP_DELKEY WM_APP + 2
 
 // TODO: reference additional headers your program requires here

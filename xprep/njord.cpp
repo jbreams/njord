@@ -19,8 +19,6 @@
 #include "Tlhelp32.h"
 
 JSRuntime * rt = NULL;
-JSContext * cx = NULL;
-JSObject * global = NULL;
 
 JSClass global_class = {
 	"global", JSCLASS_GLOBAL_FLAGS,
@@ -95,8 +93,8 @@ JSBool njord_exit(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 	{
 		JSContext * toDestroy = iter;
 		JS_ContextIterator(rt, &iter);
-		JS_SetContextThread(toDestroy);
-		JS_DestroyContext(toDestroy); 
+		if(toDestroy != cx)
+			JS_DestroyContextNoGC(toDestroy); 
 	}
 	JS_DestroyRuntime(rt);
 	JS_ShutDown();
@@ -166,6 +164,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 {
 	if(::_tcslen(lpCmdLine) == 0)
 		return 1;
+
+	JSContext * cx = NULL;
+	JSObject * global = NULL;
 
 	DWORD runtimeSize = 0x4000000;
 	DWORD stackSize = 0x2000;
