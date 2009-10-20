@@ -36,9 +36,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 	}
 	return TRUE;
 }
-
-extern struct uiInfo * uiHead;
-extern HANDLE headMutex;
+DWORD threadID = 0;
 
 void wimcleanup(JSContext * cx, JSObject * obj)
 {
@@ -52,12 +50,12 @@ void wimfilecleanup(JSContext * cx, JSObject * obj)
 	HANDLE wimHandle = JS_GetPrivate(cx, obj);
 	if(wimHandle == NULL)
 		return;
+	if(threadID != 0)
+	{
+		while(!PostThreadMessage(threadID, WM_APP + 2, 0, (LPARAM)wimHandle))
+			Sleep(200);
+	}
 	WIMUnregisterMessageCallback(wimHandle, NULL);
-	struct uiInfo * curUi = uiHead;
-	while(curUi != NULL && curUi->wimFile != wimHandle)
-		curUi = curUi->next;
-	if(curUi != NULL)
-		curUi->state = UISTATE_DYING;
 	WIMCloseHandle(wimHandle);
 }
 
@@ -284,39 +282,30 @@ JSBool wimg_apply_image(JSContext * cx, JSObject * obj, uintN argc, jsval * argv
 JSBool wimg_start_ui(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
 	HANDLE hWim = JS_GetPrivate(cx, obj);
-	struct uiInfo * newInfo = (struct uiInfo*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(struct uiInfo));
-	newInfo->wimFile = hWim;
-	newInfo->state = UISTATE_ADDED;
-	newInfo->next = uiHead;
-
-	if(headMutex = NULL)
-		headMutex = CreateMutex(NULL, TRUE, NULL);
-	else
-		WaitForSingleObject(headMutex, INFINITE);
-	if(uiHead == NULL)
+	if(threadID == 0)
 	{
-		uiHead = newInfo;
-		HANDLE threadHandle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)uiThread, (LPVOID)myModule, 0, NULL);
-		CloseHandle(threadHandle);
+		HANDLE threadHandle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)uiThread, (LPVOID)myModule, 0, &threadID);
+		if(threadHandle = INVALID_HANDLE_VALUE)
+		{
+			*rval = JSVAL_FALSE;
+			return JS_TRUE;
+		}
 	}
-	else
-		uiHead = newInfo;
-	ReleaseMutex(headMutex);
+
+	while(!PostThreadMessage(threadID, WM_APP + 1, 0, (LPARAM)hWim))
+		Sleep(200);
+	*rval = JSVAL_TRUE;
 	return JS_TRUE;
 }
 
 JSBool wimg_stop_ui(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	struct uiInfo * curInfo = uiHead;
 	HANDLE hWim = JS_GetPrivate(cx, obj);
-	WaitForSingleObject(headMutex, INFINITE);
-	while(curInfo != NULL && curInfo->wimFile != hWim)
-		curInfo = curInfo->next;
-	if(curInfo == NULL)
-		*rval = JSVAL_FALSE;
-	curInfo->state = UISTATE_DEAD;
-	ReleaseMutex(headMutex);
-	*rval = JSVAL_TRUE;
+	if(threadID != 0)
+	{
+		while(!PostThreadMessage(threadID, WM_APP + 2, 0, (LPARAM)hWim))
+			Sleep(200);
+	}
 	return JS_TRUE;
 }
 

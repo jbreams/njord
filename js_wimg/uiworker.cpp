@@ -18,15 +18,14 @@
 #include "js_wimg.h"
 #include <commctrl.h>
 #include <intrin.h>
-#pragma intrinsic(_InterlockedAnd)
 
-struct uiInfo * uiHead;
-HANDLE headMutex;
+DWORD nWindowsOpen = 0;
+extern DWORD threadID;
 
 DWORD CALLBACK WIMCallback(DWORD messageID, WPARAM wParam, LPARAM lParam, LPVOID lpvUserData)
 {
-	struct uiInfo * myInfo = (struct uiInfo*)lpvUserData;
-	if(myInfo->hDlg == NULL)
+	HWND hDlg = (HWND)lpvUserData;
+	if(hDlg == NULL)
 		return WIM_MSG_SUCCESS;
 	switch(messageID)
 	{
@@ -49,13 +48,13 @@ DWORD CALLBACK WIMCallback(DWORD messageID, WPARAM wParam, LPARAM lParam, LPVOID
 				else
 					_stprintf_s(timeRemainingText, 512, TEXT("%u%% Completed. Estimated time till completion: %u secs"), wParam, seconds);
 			}
-			SetDlgItemText(myInfo->hDlg, IDC_STATIC3, timeRemainingText);
+			SetDlgItemText(hDlg, IDC_STATIC3, timeRemainingText);
 			HeapFree(GetProcessHeap(), 0, timeRemainingText);
-			SendDlgItemMessage(myInfo->hDlg, IDC_PROGRESS, PBM_SETPOS, wParam, 0);
+			SendDlgItemMessage(hDlg, IDC_PROGRESS, PBM_SETPOS, wParam, 0);
 		}
 		break;
 	case WIM_MSG_FILEINFO:
-		SetDlgItemText(myInfo->hDlg, IDC_STATIC2, (LPWSTR)wParam);
+		SetDlgItemText(hDlg, IDC_STATIC2, (LPWSTR)wParam);
 		break;
 
 	}
@@ -74,9 +73,21 @@ INT_PTR CALLBACK ProgressDlgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 	return FALSE;
 }
 
+BOOL CALLBACK KillProgressWindowProc(HWND hWnd, LPARAM lParam)
+{
+	HANDLE wimFile = (HANDLE)GetWindowLongPtrW(hWnd, GWLP_USERDATA);
+	if(wimFile == (HANDLE)lParam)
+	{
+		WIMUnregisterMessageCallback(wimFile, (FARPROC)WIMCallback);
+		DestroyWindow(hWnd);
+		if(--nWindowsOpen == 0)
+			return FALSE;
+	}
+	return TRUE;
+}
+
 DWORD uiThread(LPVOID param)
 {
-	BOOL active = FALSE;
 	HINSTANCE thisInstance = (HINSTANCE)param;
 
 	INITCOMMONCONTROLSEX icce;
@@ -84,53 +95,32 @@ DWORD uiThread(LPVOID param)
 	icce.dwICC = ICC_PROGRESS_CLASS;
 	InitCommonControlsEx(&icce);
 
-	struct uiInfo * curUi;
-	do
+	MSG msg;
+	while(GetMessage(&msg, NULL, 0, 0))
 	{
-		WaitForSingleObject(headMutex, INFINITE);
-		curUi = uiHead;
-		while(curUi != NULL)
+		switch(msg.message)
 		{
-			switch(curUi->state)
+		case (WM_APP + 1):
 			{
-			case UISTATE_ADDED:
-				curUi->hDlg = CreateDialogW(thisInstance, MAKEINTRESOURCE(IDD_PROGRESS), NULL, ProgressDlgProc);
-				if(curUi->hDlg != NULL)
-					WIMRegisterMessageCallback(curUi->wimFile, (FARPROC)WIMCallback, (LPVOID)curUi);
-				curUi->state = UISTATE_RUNNING;
-				active = TRUE;
-				break;
-			case UISTATE_RUNNING:
-				active = TRUE;
-				break;
-			case UISTATE_DYING:
-				WIMUnregisterMessageCallback(curUi->wimFile, (FARPROC)WIMCallback);
-				DestroyWindow(curUi->hDlg);
-				curUi->state = UISTATE_DEAD;
-				active = (active == TRUE) ? TRUE : FALSE;
-				break;
+				HWND hDlg = CreateDialogW(thisInstance, MAKEINTRESOURCE(IDD_PROGRESS), NULL, ProgressDlgProc);
+				SetWindowLongPtrW(hDlg, GWLP_USERDATA, (LONG_PTR)msg.lParam);
+				WIMRegisterMessageCallback((HANDLE)msg.lParam, (FARPROC)WIMCallback, (LPVOID)hDlg);
+				nWindowsOpen++;
 			}
-			curUi = curUi->next;
-		}
-		ReleaseMutex(headMutex);
-		MSG msg;
-		if(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-		{
+			break;
+		case (WM_APP + 2):
+			if(!EnumThreadWindows(GetCurrentThreadId(), KillProgressWindowProc, msg.lParam))
+			{
+				PostQuitMessage(0);
+				threadID = 0;
+			}
+			break;
+		default:
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
+			break;
 		}
-	} while(active);
-
-	WaitForSingleObject(headMutex, INFINITE);
-	curUi = uiHead;
-	while(curUi != NULL)
-	{
-		struct uiInfo * nextUi = curUi->next;
-		HeapFree(GetProcessHeap(), 0, curUi);
-		curUi = nextUi;
 	}
-	uiHead = NULL;
-	ReleaseMutex(headMutex);
-	CloseHandle(headMutex);
+
 	return 0;
 }
