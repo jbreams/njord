@@ -211,11 +211,13 @@ void wmi_services_cleanup(JSContext * cx, JSObject * obj)
 {
 	IWbemServices * pSvc = (IWbemServices*)JS_GetPrivate(cx, obj);
 	if(pSvc)
-		pSvc->Release();
-	if(--nWbemServices == 0)
 	{
-		pLoc->Release();
-		pLoc = NULL;
+		pSvc->Release();
+		if(--nWbemServices == 0)
+		{
+			pLoc->Release();
+			pLoc = NULL;
+		}
 	}
 }
 
@@ -340,8 +342,8 @@ JSBool wmi_next_enum(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	else
 	{
 		JSObject * retObj = JS_NewObject(cx, &wmiClass, wmiClassProto, obj);
-		JS_SetPrivate(cx, retObj, classObj);
 		*rval = OBJECT_TO_JSVAL(retObj);
+		JS_SetPrivate(cx, retObj, classObj);
 	}
 	JS_EndRequest(cx);
 	return JS_TRUE;
@@ -434,6 +436,16 @@ void wmi_class_cleanup(JSContext * cx, JSObject * obj)
 		classObj->Release();
 }
 
+JSBool wmi_release(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JS_BeginRequest(cx);
+	IUnknown * object = (IUnknown*)JS_GetPrivate(cx, obj);
+	object->Release();
+	JS_SetPrivate(cx, obj, NULL);
+	JS_EndRequest(cx);
+	return JS_TRUE;
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -443,12 +455,19 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "OpenClass", wmi_open_class, 3, 0 },
 		{ "ExecQuery", wmi_exec_query, 1, 0 },
 		{ "OpenInstance", wmi_open_instance, 1, 0 },
+		{ "Release", wmi_release, 0, 0 },
 		{ 0 }
 	};
 
 	JSFunctionSpec wmiEnumFunctions[] = {
 		{ "Next", wmi_next_enum, 0, 0 },
 		{ "Reset", wmi_reset_enum, 0, 0 },
+		{ "Release", wmi_release, 0, 0 },
+		{ 0 }
+	};
+
+	JSFunctionSpec wmiClassFunctions[] = {
+		{ "Release", wmi_release, 0, 0 },
 		{ 0 }
 	};
 
@@ -463,7 +482,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 	JS_DefineConstDoubles(cx, global, consts);
 	wmiServicesProto = JS_InitClass(cx, global, NULL, &wmiServices, NULL, 0, NULL, wmiServiceFunctions, NULL, NULL);
 	wmiEnumProto = JS_InitClass(cx, global, NULL, &wmiEnum, NULL, 0, NULL, wmiEnumFunctions, NULL, NULL);
-	wmiClassProto = JS_InitClass(cx, global, NULL, &wmiClass, NULL, 0, NULL, NULL, NULL, NULL);
+	wmiClassProto = JS_InitClass(cx, global, NULL, &wmiClass, NULL, 0, NULL, wmiClassFunctions, NULL, NULL);
 	JS_DefineFunction(cx, global, "WbemConnect", wmi_connect, 4, 0);
 	JS_EndRequest(cx);
 	return TRUE;
