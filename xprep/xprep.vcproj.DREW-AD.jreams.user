@@ -39,7 +39,7 @@
 			<DebugSettings
 				Command="$(TargetPath)"
 				WorkingDirectory=""
-				CommandArguments="G:\Universal Imaging\xdeploy\test.js"
+				CommandArguments="test2.js"
 				Attach="false"
 				DebuggerType="3"
 				Remote="1"

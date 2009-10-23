@@ -96,6 +96,8 @@ JSBool njord_exit(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 		if(toDestroy != cx)
 			JS_DestroyContextNoGC(toDestroy); 
 	}
+	JS_GC(cx);
+	JS_DestroyContext(cx);
 	JS_DestroyRuntime(rt);
 	JS_ShutDown();
 
