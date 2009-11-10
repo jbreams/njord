@@ -49,6 +49,21 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 //
+// Dialog
+//
+
+IDD_DIALOG DIALOGEX 0, 0, 265, 46
+STYLE DS_SETFONT | DS_MODALFRAME | DS_SETFOREGROUND | DS_FIXEDSYS | DS_CENTER | WS_CAPTION
+CAPTION "Driver Installation"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_PROGRESS,"msctls_progress32",WS_BORDER,7,25,251,14
+    LTEXT           "Driver installation is starting...",IDC_STATICTEXT,7,7,251,17
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
 // DESIGNINFO
 //
 
@@ -64,21 +79,6 @@ BEGIN
     END
 END
 #endif    // APSTUDIO_INVOKED
-
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// Dialog
-//
-
-IDD_DIALOG DIALOGEX 0, 0, 265, 46
-STYLE DS_SETFONT | DS_MODALFRAME | DS_SETFOREGROUND | DS_FIXEDSYS | DS_CENTER | WS_CAPTION
-CAPTION "Driver Installation"
-FONT 8, "MS Shell Dlg", 400, 0, 0x1
-BEGIN
-    CONTROL         "",IDC_PROGRESS,"msctls_progress32",WS_BORDER,7,25,251,14
-    LTEXT           "Driver installation is starting...",IDC_STATICTEXT,7,7,251,17
-END
 
 #endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
