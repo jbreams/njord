@@ -15,15 +15,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_wmi", "js_wmi\js_wmi.vcp
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_wimg", "js_wimg\js_wimg.vcproj", "{5351A17D-795C-4A83-8465-2858B297603F}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_xdriver", "js_xdriver\js_xdriver.vcproj", "{F5C1D174-61F9-4309-9049-E8D9B3A14669}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "signscript", "signscript\signscript.vcproj", "{F53D2A3F-A0F4-47D4-A74B-BE1F795DB0ED}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{09C800CE-9AB8-43E2-B52C-2D5EDE7A0D12}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_sqlite", "js_sqlite\js_sqlite.vcproj", "{EC7DFC13-81D0-4AFB-ABF8-DB3ED9C6ED0B}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_ldap", "js_ldap\js_ldap.vcproj", "{67CD5B6E-B343-4840-A52B-D2796D5855F0}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "js_difx", "js_difx\js_difx.vcproj", "{E65107FA-763E-4879-8085-BFFB276CFE01}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -59,22 +57,18 @@ Global
 		{5351A17D-795C-4A83-8465-2858B297603F}.Debug|Win32.Build.0 = Debug|Win32
 		{5351A17D-795C-4A83-8465-2858B297603F}.Release|Win32.ActiveCfg = Release|Win32
 		{5351A17D-795C-4A83-8465-2858B297603F}.Release|Win32.Build.0 = Release|Win32
-		{F5C1D174-61F9-4309-9049-E8D9B3A14669}.Debug|Win32.ActiveCfg = Debug|Win32
-		{F5C1D174-61F9-4309-9049-E8D9B3A14669}.Debug|Win32.Build.0 = Debug|Win32
-		{F5C1D174-61F9-4309-9049-E8D9B3A14669}.Release|Win32.ActiveCfg = Release|Win32
-		{F5C1D174-61F9-4309-9049-E8D9B3A14669}.Release|Win32.Build.0 = Release|Win32
 		{F53D2A3F-A0F4-47D4-A74B-BE1F795DB0ED}.Debug|Win32.ActiveCfg = Debug|Win32
 		{F53D2A3F-A0F4-47D4-A74B-BE1F795DB0ED}.Debug|Win32.Build.0 = Debug|Win32
 		{F53D2A3F-A0F4-47D4-A74B-BE1F795DB0ED}.Release|Win32.ActiveCfg = Release|Win32
 		{F53D2A3F-A0F4-47D4-A74B-BE1F795DB0ED}.Release|Win32.Build.0 = Release|Win32
-		{EC7DFC13-81D0-4AFB-ABF8-DB3ED9C6ED0B}.Debug|Win32.ActiveCfg = Debug|Win32
-		{EC7DFC13-81D0-4AFB-ABF8-DB3ED9C6ED0B}.Debug|Win32.Build.0 = Debug|Win32
-		{EC7DFC13-81D0-4AFB-ABF8-DB3ED9C6ED0B}.Release|Win32.ActiveCfg = Release|Win32
-		{EC7DFC13-81D0-4AFB-ABF8-DB3ED9C6ED0B}.Release|Win32.Build.0 = Release|Win32
 		{67CD5B6E-B343-4840-A52B-D2796D5855F0}.Debug|Win32.ActiveCfg = Debug|Win32
 		{67CD5B6E-B343-4840-A52B-D2796D5855F0}.Debug|Win32.Build.0 = Debug|Win32
 		{67CD5B6E-B343-4840-A52B-D2796D5855F0}.Release|Win32.ActiveCfg = Release|Win32
 		{67CD5B6E-B343-4840-A52B-D2796D5855F0}.Release|Win32.Build.0 = Release|Win32
+		{E65107FA-763E-4879-8085-BFFB276CFE01}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E65107FA-763E-4879-8085-BFFB276CFE01}.Debug|Win32.Build.0 = Debug|Win32
+		{E65107FA-763E-4879-8085-BFFB276CFE01}.Release|Win32.ActiveCfg = Release|Win32
+		{E65107FA-763E-4879-8085-BFFB276CFE01}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
