@@ -1,0 +1,16 @@
+js_xdeploy exposes various methods used for deploying workstations. Although some of them wrap up several native API calls, there are no dependencies beyond Windows. All the functions in this library are compatible from Windows 2000 to Windows 7. 
+
+== Methods ==
+* [SetComputerName]
+* [NetJoinDomain]
+* [NetLocalGroupAddMembers]
+* [NetGetJoinableOUs]
+* [MsiInstallProduct]
+* [MsiSetInternalUI]
+* [CryptVerifyFileSignature]
+* [CryptSignFile]
+* [MD5]
+* [CreateProgressDlg]
+
+== Objects ==
+* [ProgressDlg]

@@ -1,0 +1,1 @@
+The Show method will either show or hide the ProgressDlg window. It takes one optional boolean parameter, which when set to false will hide the window. Otherwise it will show it. If the window is already visible, which it is by default, this function has no effect. The function returns nothing.
