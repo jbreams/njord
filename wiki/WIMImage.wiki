@@ -1,0 +1,7 @@
+The WIMImage class represents an image stored in a [WIMFile], it is created either by calling [WIMCaptureImage CaptureImage] or [WIMLoadImage LoadImage] from a valid [WIMFile]. 
+
+==Members==
+|| *Name* || *Type* || *Description* ||
+|| [WIMApplyImage ApplyImage] || Function || Applies the image to a local filesystem ||
+|| [WIMClose Close] || Function || Manually closes the image and cleans up any resources it has opened ||
+|| [WIMInformation information] || Property || Returns the XML metadata associated with the image ||

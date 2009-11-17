@@ -1,0 +1,8 @@
+CaptureImage will capture an image from the local filesystem. It takes two parameters, the first is the path for the root of the image and the second is an optional flags value. The path for the root of the image does not necessarily have to be the root of the filesystem. You could, for example call wimFile.CaptureImage("c:\\pathtoimage") if c:\pathtoimage pointed to the contents of your image. On success the function will return a [WIMImage] object for the image just created, otherwise it will return false; more information about any errors can be retrieved with [GetLastError].
+
+==Flags==
+|| *Value* || *Description* ||
+|| WIM_FLAG_NO_DIRACL || Do not capture directory security information ||
+|| WIM_FLAG_NO_FILEACL || Do not capture file security information ||
+|| WIM_FLAG_NO_RP_FIX || Disables automatic path fixups for junctions and symbolic links ||
+|| WIM_FLAG_VERIFY || Capture verifies single-instance files byte by byte || 

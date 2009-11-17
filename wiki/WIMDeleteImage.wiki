@@ -1,0 +1,1 @@
+DeleteImage will delete an image stored inside a WIM file. It takes a single parameter, an integer referring to the image number. On success, the function will return true, otherwise it will return false with more information available with [GetLastError].

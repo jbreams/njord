@@ -1,0 +1,1 @@
+js_wimg provides support for the Windows Imaging API to nJord. It requires the wimgapi.dll redistributable to function, and is statically linked to it. It exposes the [WIMCreateFile] function for creating and opening WIM files, and the [WIMFile] and [WIMImage] classes for manipulating the files and images returned by [WIMCreateFile].

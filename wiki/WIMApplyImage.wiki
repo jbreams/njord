@@ -1,0 +1,11 @@
+ApplyImage will apply a loaded [WIMImage] to a local filesystem. It takes two parameters, the first is the path where the image should be applied (eg. "C:\\"), and the second is a flags parameter that will control how the files are restored. When the image has been applied, the function will flush the file buffers on the target filesystem to prevent data corruption if the computer is suddenly turned off.
+
+==Flags==
+|| *Value* || *Description* ||
+|| WIM_FLAG_VERIFY || Verifies that the files match original data ||
+|| WIM_FLAG_INDEX || Specifies that the image is to be sequentially read for performance reasons ||
+|| WIM_FLAG_NO_APPLY || Goes through the application process without actually creating any files or directories. Useful for testing. ||
+|| WIM_FLAG_FILEINFO || Displays information about which files are being applied in the dialog box created by [WIMStartUI StartUI] ||
+|| WIM_FLAG_NO_RP_FIX || Disables automatich path fixups for junctions and symbolic links ||
+|| WIM_FLAG_NO_DIRACL || Disables restoring security information for directories ||
+|| WIM_FLAG_NO_FILEACL || Disables restoring security information for files ||

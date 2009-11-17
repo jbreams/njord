@@ -1,0 +1,1 @@
+StartUI will create a progress dialog box for the activity of a [WIMFile]. Since [WIMCaptureImage CaptureImage] and [WIMApplyImage ApplyImage] are synchronous, this should be called before the operation. It will also create a UI thread if it does not exist already. It returns nothing and assumes success.
