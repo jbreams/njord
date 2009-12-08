@@ -256,6 +256,18 @@ JSBool GetLastNetErrorMessage(JSContext * cx, JSObject * obj, uintN argc, jsval 
 	return JS_TRUE;
 }
 
+JSBool close_FirstUXWnd(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	HWND findResult = FindWindow(NULL, TEXT("FirstUXWnd"));
+	*rval = JSVAL_FALSE;
+	if(findResult)
+	{
+		if(ShowWindow(findResult, SW_HIDE))
+			*rval = JSVAL_TRUE;
+	}
+	return JS_TRUE;
+}
+
 extern void InitCrypto(JSContext * cx, JSObject * obj);
 extern void InitMsi(JSContext * cx, JSObject * obj);
 extern void InitProgressDlg(JSContext * cx, JSObject * obj);
@@ -272,6 +284,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ "NetLocalGroupAddMembers", netlocalgroupaddmembers, 2, 0 },
 		{ "NetGetLastErrorMessage", GetLastNetErrorMessage, 1, 0 },
 		{ "NetGetJoinableOUs", netgetjoinableous, 3, 0 },
+		{ "HideFirstUXWnd", close_FirstUXWnd, 0, 0 },
 		{ 0 },
 	};
 

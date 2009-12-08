@@ -309,6 +309,16 @@ JSBool wimg_stop_ui(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	return JS_TRUE;
 }
 
+JSBool wimg_image_count_getter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
+{
+	JS_BeginRequest(cx);
+	HANDLE hImage = JS_GetPrivate(cx, obj);
+	DWORD imageCount = WIMGetImageCount(hImage);
+	JS_NewNumberValue(cx, (jsdouble)imageCount, vp);
+	JS_EndRequest(cx);
+	return JS_TRUE;
+}
+
 JSBool wimg_image_info_getter(JSContext * cx, JSObject * obj, jsval idval, jsval * vp)
 {
 	JS_BeginRequest(cx);
@@ -393,6 +403,7 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 
 	JSPropertySpec wimProps[] = {
 		{ "information", 0, JSPROP_PERMANENT, wimg_image_info_getter, wimg_image_info_setter },
+		{ "imageCount", 0, JSPROP_PERMANENT | JSPROP_READONLY, wimg_image_count_getter, NULL },
 		{ 0 }
 	};
 
@@ -413,6 +424,9 @@ BOOL __declspec(dllexport) InitExports(JSContext * cx, JSObject * global)
 		{ WIM_FLAG_INDEX, "WIM_FLAG_INDEX", 0, 0 },
 		{ WIM_FLAG_NO_APPLY, "WIM_FLAG_NO_APPLY", 0, 0 },
 		{ WIM_FLAG_FILEINFO, "WIM_FLAG_FILEINFO", 0, 0 },
+		{ WIM_FLAG_NO_DIRACL, "WIM_FLAG_NO_DIRACL", 0, 0 },
+		{ WIM_FLAG_NO_FILEACL, "WIM_FLAG_NO_FILEACL", 0, 0 },
+		{ WIM_FLAG_NO_RP_FIX, "WIM_FLAG_NO_RP_FIX", 0, 0 },
 		{ 0 },
 	};
 

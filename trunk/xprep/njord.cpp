@@ -28,6 +28,7 @@ JSClass global_class = {
 
 DWORD branches = 0;
 DWORD branchLimit = 5000;
+DWORD stackSize = 0x2000;
 JSBool BranchCallback(JSContext * cx, JSScript * script)
 {
 	if(branches++ > branchLimit)
@@ -159,6 +160,59 @@ JSBool parse_args(JSContext * cx, JSObject * obj, LPWSTR lpCmdLine, LPWSTR * scr
 
 BOOL SetupSigningFromFile(LPWSTR certPath);
 
+DWORD njord_async_eval_thread(LPVOID param)
+{
+	LPVOID * params = (LPVOID*)param;
+	LPWSTR theScript = _wcsdup((LPWSTR)params[0]);
+	JSObject * globalObj = (JSObject*)params[1];
+	jsval rval = JSVAL_VOID;
+	JSContext * cx = JS_NewContext(rt, stackSize);
+	JS_SetBranchCallback(cx, BranchCallback);
+	JS_SetErrorReporter(cx, ErrorReporter);
+	JS_SetOptions(cx, JSOPTION_VAROBJFIX);
+	JS_SetGlobalObject(cx, globalObj);
+	SetEvent((HANDLE)params[2]);
+	JS_BeginRequest(cx);
+	JS_EvaluateUCScript(cx, globalObj, (jschar*)theScript, wcslen(theScript), NULL, 0, &rval);
+	JS_EndRequest(cx);
+	JS_DestroyContext(cx);
+	free(theScript);
+	return 0;
+}
+
+JSBool njord_eval(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	LPWSTR theScript;
+	JSBool async = JS_FALSE;
+	JS_BeginRequest(cx);
+	if(!JS_ConvertArguments(cx, argc, argv, "W /b", &theScript, &async))
+	{
+		JS_ReportError(cx, "Must supply script to evaluate.");
+		JS_EndRequest(cx);
+		return JS_FALSE;
+	}
+	JS_EndRequest(cx);
+	if(!async)
+	{
+		JS_BeginRequest(cx);
+		JS_EvaluateUCScript(cx, obj, (jschar*)theScript, wcslen(theScript), NULL, 0, rval);
+		JS_EndRequest(cx);
+		return JS_TRUE;
+	}
+	else
+	{
+		HANDLE runningEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+		LPVOID params[3] = {(LPVOID)theScript, (LPVOID)obj, (LPVOID)runningEvent };
+		HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)njord_async_eval_thread, (LPVOID)params, 0, NULL);
+		if(thread == INVALID_HANDLE_VALUE)
+			return JS_TRUE;
+		CloseHandle(thread);
+		WaitForSingleObject(runningEvent, INFINITE);
+		CloseHandle(runningEvent);
+	}
+	return JS_TRUE;
+}
+
 int APIENTRY _tWinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
                      LPTSTR    lpCmdLine,
@@ -171,7 +225,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	JSObject * global = NULL;
 
 	DWORD runtimeSize = 0x4000000;
-	DWORD stackSize = 0x2000;
 	HKEY nJordSettingsKey = NULL;
 	RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("Software\\nJord"),0, KEY_QUERY_VALUE, &nJordSettingsKey);
 	if(nJordSettingsKey)
@@ -230,6 +283,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	}
 
 	JS_DefineFunction(cx, global, "Exit", njord_exit, 1, 0);
+	JS_DefineFunction(cx, global, "Eval", njord_eval, 2, 0);
 	InitNativeLoad(cx, global);
 	InitExec(cx, global);
 	InitFile(cx, global);

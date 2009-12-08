@@ -102,7 +102,7 @@ JSBool set_progress(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	WORD pos;
 	BOOL max = FALSE;
 	JS_BeginRequest(cx);
-	JS_ConvertArguments(cx, argc, argv, "c b", &pos, &max);
+	JS_ConvertArguments(cx, argc, argv, "c /b", &pos, &max);
 	JS_EndRequest(cx);
 
 	HWND myWnd = (HWND)JS_GetPrivate(cx, obj);
@@ -113,14 +113,27 @@ JSBool set_progress(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, js
 	return JS_TRUE;
 }
 
+JSBool show_or_hide(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	int cmd = SW_SHOW;
+	JS_BeginRequest(cx);
+	if(argc > 0 && JSVAL_IS_BOOLEAN(*argv) && !JSVAL_TO_BOOLEAN(*argv))
+		cmd = SW_HIDE;
+	HWND myWnd = (HWND)JS_GetPrivate(cx, obj);
+	*rval = ShowWindow(myWnd, cmd) ? JSVAL_TRUE : JSVAL_FALSE;
+	JS_EndRequest(cx);
+	return JS_TRUE;
+}
+
 void InitProgressDlg(JSContext * cx, JSObject * obj)
 {
 	JSFunctionSpec ui_funcs[] = {
 		{ "SetStaticText", set_static_text, 1, 0, 0 },
-		{ "SetProgress", set_progress, 2, 0, 0 },
+		{ "SetProgressBar", set_progress, 2, 0, 0 },
+		{ "Show", show_or_hide, 1, 0, 0 },
 		{ 0 }
 	};
 
 	xDriverUIProto = JS_InitClass(cx, obj, NULL, &xDriverUI, NULL, 0, NULL, ui_funcs, NULL, NULL);
-	JS_DefineFunction(cx, obj, "xDriverCreateDialog", (JSNative)create_ui, 0, 0);
+	JS_DefineFunction(cx, obj, "CreateProgressDlg", (JSNative)create_ui, 0, 0);
 }
