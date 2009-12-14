@@ -153,6 +153,7 @@ JSBool xprep_unload_all_native(JSContext * cx, JSObject * obj, uintN argc, jsval
 
 JSBool load_js_lib(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
+	JS_BeginRequest(cx);
 	JSString * fileName = JS_ValueToString(cx, argv[0]);
 
 	LPWSTR loadedFileContents = LoadFile((LPWSTR)JS_GetStringChars(fileName));
@@ -166,6 +167,7 @@ JSBool load_js_lib(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsv
 			*rval = JSVAL_FALSE;
 		HeapFree(GetProcessHeap(), 0, loadedFileContents);
 	}
+	JS_EndRequest(cx);
 	return JS_TRUE;
 }
 

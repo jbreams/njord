@@ -163,29 +163,68 @@ BOOL SetupSigningFromFile(LPWSTR certPath);
 DWORD njord_async_eval_thread(LPVOID param)
 {
 	LPVOID * params = (LPVOID*)param;
-	LPWSTR theScript = _wcsdup((LPWSTR)params[0]);
+	jsval * theScript = (jsval*)params[0], rval  = JSVAL_VOID, fVal = JSVAL_VOID;
 	JSObject * globalObj = (JSObject*)params[1];
-	jsval rval = JSVAL_VOID;
 	JSContext * cx = JS_NewContext(rt, stackSize);
+
 	JS_SetBranchCallback(cx, BranchCallback);
 	JS_SetErrorReporter(cx, ErrorReporter);
 	JS_SetOptions(cx, JSOPTION_VAROBJFIX);
 	JS_SetGlobalObject(cx, globalObj);
+	JS_AddRoot(cx, theScript);
 	SetEvent((HANDLE)params[2]);
 	JS_BeginRequest(cx);
-	JS_EvaluateUCScript(cx, globalObj, (jschar*)theScript, wcslen(theScript), NULL, 0, &rval);
+	if(JSVAL_IS_STRING(*theScript))
+	{
+		JSString * theScriptString = JS_ValueToString(cx, *theScript);
+		JS_AddRoot(cx, theScriptString);
+		JS_RemoveRoot(cx, theScript);
+		JS_EvaluateUCScript(cx, globalObj, theScriptString->chars, theScriptString->length, NULL, 0, &rval);
+		JS_RemoveRoot(cx, theScriptString);
+	}
+	else if(JSVAL_IS_OBJECT(*theScript) && JS_ObjectIsFunction(cx, JSVAL_TO_OBJECT(*theScript)) && JS_ConvertValue(cx, *theScript, JSTYPE_FUNCTION, &fVal)) 
+	{
+		JSFunction * theScriptFunction = (JSFunction*)JSVAL_TO_OBJECT(fVal);
+		JS_AddRoot(cx, theScriptFunction);
+		JS_RemoveRoot(cx, theScript);
+		JS_CallFunction(cx, globalObj, theScriptFunction, 0, NULL, &rval);
+		JS_RemoveRoot(cx, theScriptFunction);
+	}
 	JS_EndRequest(cx);
 	JS_DestroyContext(cx);
-	free(theScript);
 	return 0;
+}
+
+JSBool njord_create_thread(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
+{
+	JS_BeginRequest(cx);
+	if(!(JSVAL_IS_OBJECT(*argv) && JS_ObjectIsFunction(cx, JSVAL_TO_OBJECT(*argv))))
+	{
+		JS_ReportError(cx, "Must provide a function as the first argument to CreateThread");
+		JS_EndRequest(cx);
+		return JS_FALSE;
+	}
+	
+	HANDLE runningEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	LPVOID params[3] = {(LPVOID)argv, (LPVOID)obj, (LPVOID)runningEvent };
+	HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)njord_async_eval_thread, (LPVOID)params, 0, NULL);
+	if(thread == INVALID_HANDLE_VALUE)
+	{
+		JS_EndRequest(cx);
+		return JS_TRUE;
+	}
+	CloseHandle(thread);
+	WaitForSingleObject(runningEvent, INFINITE);
+	CloseHandle(runningEvent);
+	JS_EndRequest(cx);
+	return JS_TRUE;
 }
 
 JSBool njord_eval(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsval * rval)
 {
-	LPWSTR theScript;
 	JSBool async = JS_FALSE;
 	JS_BeginRequest(cx);
-	if(!JS_ConvertArguments(cx, argc, argv, "W /b", &theScript, &async))
+	if(!JS_ConvertArguments(cx, argc, argv, "* /b", &async) || !JSVAL_IS_STRING(*argv))
 	{
 		JS_ReportError(cx, "Must supply script to evaluate.");
 		JS_EndRequest(cx);
@@ -195,14 +234,17 @@ JSBool njord_eval(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, jsva
 	if(!async)
 	{
 		JS_BeginRequest(cx);
-		JS_EvaluateUCScript(cx, obj, (jschar*)theScript, wcslen(theScript), NULL, 0, rval);
+		JSString * theScript = JS_ValueToString(cx, *argv);
+		JS_AddRoot(cx, theScript);
+		JS_EvaluateUCScript(cx, obj, theScript->chars, theScript->length, NULL, 0, rval);
+		JS_RemoveRoot(cx, theScript);
 		JS_EndRequest(cx);
 		return JS_TRUE;
 	}
 	else
 	{
 		HANDLE runningEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-		LPVOID params[3] = {(LPVOID)theScript, (LPVOID)obj, (LPVOID)runningEvent };
+		LPVOID params[3] = {(LPVOID)argv, (LPVOID)obj, (LPVOID)runningEvent };
 		HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)njord_async_eval_thread, (LPVOID)params, 0, NULL);
 		if(thread == INVALID_HANDLE_VALUE)
 			return JS_TRUE;
@@ -284,6 +326,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 
 	JS_DefineFunction(cx, global, "Exit", njord_exit, 1, 0);
 	JS_DefineFunction(cx, global, "Eval", njord_eval, 2, 0);
+	JS_DefineFunction(cx, global, "CreateThread", njord_create_thread, 1, 0);
 	InitNativeLoad(cx, global);
 	InitExec(cx, global);
 	InitFile(cx, global);
