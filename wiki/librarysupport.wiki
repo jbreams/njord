@@ -1,0 +1,6 @@
+nJord exposes several methods for loading external libraries into the environment at runtime and for executing arbitrary scripts at runtime.
+
+ * [Eval] - Evaluates a string as a script, optionally asyncronously.
+ * [LoadJSLib] - Loads a JavaScript file into the running context.
+ * [LoadNative] - Loads a native library into the running context.
+ * [CreateThread] - Creates a thread from a supplied JavaScript function and executes it.
