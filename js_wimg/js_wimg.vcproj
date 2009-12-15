@@ -61,7 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="c:\js\src\Release\js32.lib ..\wimgapi\wimgapi.lib comctl32.lib"
+				AdditionalDependencies="..\spidermonkey\$(ConfigurationName)\js32.lib ..\wimgapi\wimgapi.lib comctl32.lib"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -135,7 +135,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="c:\js\src\Release\js32.lib ..\wimgapi\wimgapi.lib comctl32.lib"
+				AdditionalDependencies="..\spidermonkey\$(ConfigurationName)\js32.lib ..\wimgapi\wimgapi.lib comctl32.lib"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="2"
