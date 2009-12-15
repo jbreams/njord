@@ -68,7 +68,7 @@ JSBool netgetjoinableous(JSContext * cx, JSObject * obj, uintN argc, jsval * arg
 	JS_YieldRequest(cx);
 	DWORD ouCount = 0;
 	LPWSTR * ous = NULL;
-	DWORD status = NetGetJoinableOUs(NULL, domain, account, password, &ouCount, &ous);
+	DWORD status = NetGetJoinableOUs(NULL, domain, (JSVAL_IS_NULL(argv[1]) ? NULL : account), (JSVAL_IS_NULL(argv[2]) ? NULL : password), &ouCount, &ous);
 	if(status != NERR_Success)
 	{
 		JS_NewNumberValue(cx, status, rval);
@@ -102,8 +102,9 @@ JSBool netjoindomain(JSContext * cx, JSObject * obj, uintN argc, jsval * argv, j
 	}
 
 	JS_YieldRequest(cx);
-	DWORD result = NetJoinDomain(NULL, (LPWSTR)JS_GetStringChars(domainStr), (LPWSTR)JS_GetStringChars(accountOUStr),
-		(LPWSTR)JS_GetStringChars(accountStr), (LPWSTR)JS_GetStringChars(passwordStr), joinOptions);
+	DWORD result = NetJoinDomain(NULL, (LPWSTR)JS_GetStringChars(domainStr), (JSVAL_IS_NULL(argv[1]) ? NULL : (LPWSTR)JS_GetStringChars(accountOUStr)),
+		(JSVAL_IS_NULL(argv[2]) ? NULL : (LPWSTR)JS_GetStringChars(accountStr)), (JSVAL_IS_NULL(argv[3]) ? NULL : (LPWSTR)JS_GetStringChars(passwordStr)), 
+		joinOptions);
 	if(result == NERR_Success)
 	{
 		*rval = JSVAL_TRUE;
@@ -119,23 +120,26 @@ PSID convert_jsstring_to_sid(JSContext * cx, JSString * curMemberString, DWORD *
 	PSID curMember;
 	if(!ConvertStringSidToSid((LPWSTR)JS_GetStringChars(curMemberString), &curMember))
 	{
-		DWORD sidSize = 0;
+		DWORD sidSize = 0, cbDomain;
 		SID_NAME_USE peUse;
 		*errorCode = GetLastError();
 		JS_YieldRequest(cx);
-		if(!LookupAccountName(NULL, (LPWSTR)JS_GetStringChars(curMemberString), NULL, &sidSize, NULL, NULL, &peUse))
+		if(!LookupAccountName(NULL, (LPWSTR)JS_GetStringChars(curMemberString), NULL, &sidSize, NULL, &cbDomain, &peUse) && GetLastError() != ERROR_INSUFFICIENT_BUFFER)
 		{
 			*errorCode = GetLastError();
 			return NULL;
 		}
 		curMember = (PSID)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sidSize);
 		JS_YieldRequest(cx);
-		if(!LookupAccountName(NULL, (LPWSTR)JS_GetStringChars(curMemberString), curMember, &sidSize, NULL, NULL, &peUse))
+		LPTSTR domainName = (LPTSTR)HeapAlloc(GetProcessHeap(), 0, cbDomain * sizeof(TCHAR));
+		if(!LookupAccountName(NULL, (LPWSTR)JS_GetStringChars(curMemberString), curMember, &sidSize, domainName, &cbDomain, &peUse))
 		{
 			*errorCode = GetLastError();
 			HeapFree(GetProcessHeap(), 0, curMember);
+			HeapFree(GetProcessHeap(), 0, domainName);
 			return NULL;
 		}
+		HeapFree(GetProcessHeap(), 0, domainName);
 		*errorCode = ERROR_SUCCESS;
 	}
 	else

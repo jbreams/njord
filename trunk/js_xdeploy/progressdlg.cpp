@@ -129,7 +129,7 @@ void InitProgressDlg(JSContext * cx, JSObject * obj)
 {
 	JSFunctionSpec ui_funcs[] = {
 		{ "SetStaticText", set_static_text, 1, 0, 0 },
-		{ "SetProgressBar", set_progress, 2, 0, 0 },
+		{ "SetProgress", set_progress, 2, 0, 0 },
 		{ "Show", show_or_hide, 1, 0, 0 },
 		{ 0 }
 	};
