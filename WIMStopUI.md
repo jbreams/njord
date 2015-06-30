@@ -1,0 +1,1 @@
+StopUI will destroy the progress dialog box created by [StartUI](WIMStartUI.md). If no dialog box was created, this has no effect. If there are no more dialog boxes, it will stop the UI thread. The function returns nothing.

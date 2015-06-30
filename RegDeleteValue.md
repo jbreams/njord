@@ -1,0 +1,1 @@
+DeleteValue will delete a single value from a registry key. It takes one parameter, a string, that specifies the name of the value to be deleted. If the function succeeds it will return true; otherwise, it will return false. For more detailed error information, call [GetLastError](GetLastError.md).

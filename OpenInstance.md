@@ -1,0 +1,1 @@
+OpenInstance will open a single instance of a class given a PATH property for it. It takes only a path to an instance as a string and will return either a [WbemClass](WbemClass.md) object on success or false on failure.

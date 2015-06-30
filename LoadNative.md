@@ -1,0 +1,1 @@
+LoadNative will load an nJord extension into the running context. It takes one argument, the path to the libary to load. If there is an error loading the library, the function will report an error and stop script execution. Calls to [SetDllDirectory](SetDllDirectory.md) will effect how this function searches for libraries.

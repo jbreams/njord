@@ -1,0 +1,1 @@
+GetDOM will return a new [DOMDocument](DOMDocument.md) object that represents the loaded document. This method will probably be turned into a property. It takes no arguments.

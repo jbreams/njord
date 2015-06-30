@@ -1,0 +1,1 @@
+Close will close they key associated with the [RegKey](RegKey.md) object and set the object to null. This function takes no arguments and returns nothing. After this is called, the object will not be valid except in [RegOpenKey](RegOpenKey.md) and [RegCreateKey](RegCreateKey.md).

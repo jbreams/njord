@@ -1,0 +1,1 @@
+GetLastErrorMessage expands on [GetLastError](GetLastError.md) by using the [FormatMessage](http://msdn.microsoft.com/en-us/library/ms679351(VS.85).aspx) function to return the text representation of the last error code.

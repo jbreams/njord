@@ -1,0 +1,1 @@
+Flush will flush any changes that were made to an open registry key to disk synchronously. This normally happens over time or when they key is closed, but this function is provided to force the action. The function takes no arguments and returns true or false for success and failure.

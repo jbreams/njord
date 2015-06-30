@@ -1,0 +1,7 @@
+SetAttribute will set an attribute on the element encapsulated by the [DOMNode](DOMNode.md). If the node is not an element, it will return false.
+
+## Parameters ##
+| **Name** | **Type** | **Description** |
+|:---------|:---------|:----------------|
+| Name     | String   | The name of the attribute to set |
+| Value    | String   | The value to be set |

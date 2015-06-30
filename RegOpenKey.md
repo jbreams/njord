@@ -1,0 +1,1 @@
+RegOpenKey is the same as [RegCreateKey](RegCreateKey.md), except that it will fail and return false if the key does not already exist. All the parameters are the same.

@@ -1,0 +1,1 @@
+EnumKeys works exactly the same way as [EnumValues](EnumValues.md) except it enumerates sub-keys instead of values. The registry key must be opened with KEY\_ENUMERATE\_SUB\_KEYS to make this call.

@@ -1,0 +1,1 @@
+StopHotKeys will immediately shutdown the hotkey thread and free up any resources used. Since cleanup is being done in another thread, this function is asynchronous. It takes no arguments and returns nothing - this function has the same behavior as unloading the extension.

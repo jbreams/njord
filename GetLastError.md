@@ -1,0 +1,1 @@
+GetLastError encapsulates the Win32 [GetLastError](http://msdn.microsoft.com/en-us/library/ms679360(VS.85).aspx) function. It returns the error code of the last Win32 API function called - in some cases this may be ERROR\_SUCCESS. It takes no arguments and will not fail. For a text representation of the error, call [GetLastErrorMessage](GetLastErrorMessage.md).

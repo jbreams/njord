@@ -1,0 +1,1 @@
+CreateProgressDlg, formally xDriverCreateUI, will create a dialog box with a progress bar, and a static text control and return an object with method for manipulating the window.

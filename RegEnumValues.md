@@ -1,0 +1,1 @@
+EnumValues will enumerate the values of a key into an array. The function takes no parameters and will return an array object on success and false on failure. More information about an error can be retrieved from [GetLastError](GetLastError.md). The key must be opened with KEY\_ENUM\_VALUES in order to make this call.

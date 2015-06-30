@@ -1,0 +1,1 @@
+Sleep will cause the running thread to sleep for a the specified number of milliseconds. The function takes a single argument, the number of milliseconds, and returns nothing.
